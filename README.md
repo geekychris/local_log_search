@@ -13,6 +13,13 @@ A local log search and indexing service similar to Splunk, built with Java, Luce
 - **REST API**: Programmatic access to all functionality
 - **Configurable Commits**: Control indexing performance with commit intervals
 
+![img_1.png](test-log-generator/doc_images/img_1.png)
+
+![img.png](test-log-generator/doc_images/img.png)
+
+![img_2.png](test-log-generator/doc_images/img_2.png)
+![img_3.png](test-log-generator/doc_images/img_3.png)
+
 ## Architecture
 
 ### Modules
