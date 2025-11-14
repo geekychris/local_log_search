@@ -9,6 +9,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -131,10 +132,10 @@ public class SearchService {
             results.add(result);
         }
         
-        // Calculate facets if requested
+        // Calculate facets if requested - use ALL matching documents, not just the page
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         if (request.isIncludeFacets()) {
-            facets = calculateFacets(results);
+            facets = calculateFacetsFromAllHits(searcher, query, topDocs.totalHits.value);
         }
         
         return new SearchResponse(results, (int) topDocs.totalHits.value, 0, results.size(), facets);
@@ -186,17 +187,39 @@ public class SearchService {
         return result;
     }
     
-    private Map<String, Map<String, Integer>> calculateFacets(List<SearchResult> results) {
+    /**
+     * Calculate facets from ALL matching documents, not just the returned page.
+     * This dynamically discovers fields and counts values across all hits.
+     */
+    private Map<String, Map<String, Integer>> calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits) throws IOException {
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         
-        for (SearchResult result : results) {
-            if (result.getFields() != null) {
-                for (Map.Entry<String, String> field : result.getFields().entrySet()) {
-                    String fieldName = field.getKey();
-                    String fieldValue = field.getValue();
-                    
+        if (totalHits == 0) {
+            return facets;
+        }
+        
+        // Limit faceting to reasonable number of documents for performance
+        int maxDocsForFaceting = Math.min((int) totalHits, 10000);
+        TopDocs allDocs = searcher.search(query, maxDocsForFaceting);
+        
+        // Dynamically discover ALL fields and count values in a single pass
+        for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
+            Document doc = searcher.doc(scoreDoc.doc);
+            
+            // Iterate through all fields in this document
+            for (IndexableField field : doc.getFields()) {
+                String fieldName = field.name();
+                
+                // Skip internal/system fields
+                if (fieldName.equals("raw_text") || fieldName.equals("source") || 
+                    fieldName.equals("timestamp") || fieldName.endsWith("_exact")) {
+                    continue;
+                }
+                
+                String value = field.stringValue();
+                if (value != null && !value.isEmpty()) {
                     facets.computeIfAbsent(fieldName, k -> new HashMap<>())
-                          .merge(fieldValue, 1, Integer::sum);
+                          .merge(value, 1, Integer::sum);
                 }
             }
         }
