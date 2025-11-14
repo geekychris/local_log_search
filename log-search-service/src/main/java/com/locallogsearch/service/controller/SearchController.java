@@ -45,6 +45,7 @@ public class SearchController {
             request.setIncludeFacets(apiRequest.isIncludeFacets());
             request.setTimestampFrom(apiRequest.getTimestampFrom());
             request.setTimestampTo(apiRequest.getTimestampTo());
+            request.setFacetBuckets(apiRequest.getFacetBuckets());
             
             log.info("Search request - timestampFrom: {}, timestampTo: {}", apiRequest.getTimestampFrom(), apiRequest.getTimestampTo());
             
@@ -72,6 +73,7 @@ public class SearchController {
         private int maxResults = 50; // For backward compatibility
         private Long timestampFrom;
         private Long timestampTo;
+        private java.util.Map<String, SearchRequest.FacetBucketConfig> facetBuckets;
         
         public List<String> getIndices() {
             return indices;
@@ -152,6 +154,14 @@ public class SearchController {
         
         public void setTimestampTo(Long timestampTo) {
             this.timestampTo = timestampTo;
+        }
+        
+        public java.util.Map<String, SearchRequest.FacetBucketConfig> getFacetBuckets() {
+            return facetBuckets;
+        }
+        
+        public void setFacetBuckets(java.util.Map<String, SearchRequest.FacetBucketConfig> facetBuckets) {
+            this.facetBuckets = facetBuckets;
         }
     }
     

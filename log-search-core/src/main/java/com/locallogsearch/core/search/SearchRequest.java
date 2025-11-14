@@ -1,6 +1,7 @@
 package com.locallogsearch.core.search;
 
 import java.util.List;
+import java.util.Map;
 
 public class SearchRequest {
     private List<String> indices;
@@ -13,6 +14,7 @@ public class SearchRequest {
     private List<String> facetFields;
     private Long timestampFrom;
     private Long timestampTo;
+    private Map<String, FacetBucketConfig> facetBuckets;
     
     public SearchRequest() {
         this.page = 0;
@@ -99,5 +101,28 @@ public class SearchRequest {
     
     public void setTimestampTo(Long timestampTo) {
         this.timestampTo = timestampTo;
+    }
+    
+    public Map<String, FacetBucketConfig> getFacetBuckets() {
+        return facetBuckets;
+    }
+    
+    public void setFacetBuckets(Map<String, FacetBucketConfig> facetBuckets) {
+        this.facetBuckets = facetBuckets;
+    }
+    
+    /**
+     * Configuration for bucketing a numeric facet field into ranges
+     */
+    public static class FacetBucketConfig {
+        private List<Double> ranges;  // e.g., [0, 100, 500, 1000, 5000] creates buckets: 0-100, 100-500, 500-1000, 1000-5000, 5000+
+        
+        public List<Double> getRanges() {
+            return ranges;
+        }
+        
+        public void setRanges(List<Double> ranges) {
+            this.ranges = ranges;
+        }
     }
 }

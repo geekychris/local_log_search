@@ -186,6 +186,83 @@
             background: #e3f2fd;
             text-decoration: underline;
         }
+        .bucket-config {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+        }
+        .bucket-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .bucket-config-content {
+            margin-top: 1rem;
+        }
+        .bucket-field {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .bucket-field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .bucket-field-name {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        .bucket-ranges {
+            font-size: 0.875rem;
+            color: #666;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        .remove-bucket-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+        .remove-bucket-btn:hover {
+            background: #c0392b;
+        }
+        .facet-gear {
+            margin-left: 0.5rem;
+            color: #95a5a6;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .facet-gear:hover {
+            color: #3498db;
+        }
+        .add-bucket-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .add-bucket-controls input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .add-bucket-controls button {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
         .error {
             background: #ffebee;
             color: #c62828;
@@ -523,6 +600,20 @@
                                 </button>
                                 <div class="time-range-display" id="timeRangeDisplay">All time</div>
                             </div>
+                            <div class="bucket-config">
+                                <div class="bucket-config-header" id="bucketConfigToggle">
+                                    <label style="margin: 0; cursor: pointer;">⚙️ Facet Bucketing (optional)</label>
+                                    <span id="bucketToggleIcon">▼</span>
+                                </div>
+                                <div class="bucket-config-content" id="bucketConfigContent" style="display: none;">
+                                    <div id="bucketFieldsList"></div>
+                                    <div class="add-bucket-controls">
+                                        <input type="text" id="newBucketField" placeholder="Field name (e.g., duration)">
+                                        <input type="text" id="newBucketRanges" placeholder="Ranges (e.g., 0,100,500,1000)">
+                                        <button type="button" class="secondary" id="addBucketBtn" style="white-space: nowrap;">+ Add</button>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="button-group">
                                 <button type="submit">Search</button>
                                 <button type="button" class="secondary" id="clearBtn">Clear</button>
@@ -806,6 +897,7 @@
     <script>
         // State management
         let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+        let facetBuckets = {}; // field -> {ranges: [...]}
         
         // Page navigation
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -854,7 +946,8 @@
                 timeRange: {
                     from: currentTimeRange.from,
                     to: currentTimeRange.to
-                }
+                },
+                facetBuckets: Object.keys(facetBuckets).length > 0 ? JSON.parse(JSON.stringify(facetBuckets)) : null
             };
             
             searchHistory.unshift(entry);
@@ -882,11 +975,19 @@
                     timeRangeInfo = `<div style="font-size: 0.7rem; color: #3498db; margin-top: 0.25rem;">🕐 ${fromStr} → ${toStr}</div>`;
                 }
                 
+                let bucketInfo = '';
+                if (entry.facetBuckets && Object.keys(entry.facetBuckets).length > 0) {
+                    const bucketCount = Object.keys(entry.facetBuckets).length;
+                    const bucketFields = Object.keys(entry.facetBuckets).join(', ');
+                    bucketInfo = `<div style="font-size: 0.7rem; color: #9b59b6; margin-top: 0.25rem;" title="Bucketed fields: ${bucketFields}">⚙️ ${bucketCount} bucketed field${bucketCount > 1 ? 's' : ''}</div>`;
+                }
+                
                 return `
                     <div class="history-item" data-index="${index}">
                         <div class="history-query">${entry.query}</div>
                         <div class="history-time">${new Date(entry.timestamp).toLocaleString()}</div>
                         ${timeRangeInfo}
+                        ${bucketInfo}
                     </div>
                 `;
             }).join('');
@@ -933,6 +1034,14 @@
                         currentTimeRange = { from: null, to: null };
                         timeRangeDisplay.textContent = 'All time';
                     }
+                    
+                    // Restore facet buckets if present
+                    if (entry.facetBuckets) {
+                        facetBuckets = JSON.parse(JSON.stringify(entry.facetBuckets));
+                    } else {
+                        facetBuckets = {};
+                    }
+                    renderBucketFields();
                 });
             });
         }
@@ -942,6 +1051,94 @@
             localStorage.removeItem('searchHistory');
             renderHistory();
         });
+        
+        // Bucket Configuration Management
+        function renderBucketFields() {
+            const bucketFieldsList = document.getElementById('bucketFieldsList');
+            
+            if (Object.keys(facetBuckets).length === 0) {
+                bucketFieldsList.innerHTML = '<div style="color: #999; font-size: 0.875rem; margin-bottom: 0.5rem;">No bucketing configured</div>';
+                return;
+            }
+            
+            let html = '';
+            Object.entries(facetBuckets).forEach(([field, config]) => {
+                html += `
+                    <div class="bucket-field">
+                        <div class="bucket-field-header">
+                            <span class="bucket-field-name">${field}</span>
+                            <button class="remove-bucket-btn" data-field="${field}">Remove</button>
+                        </div>
+                        <div class="bucket-ranges">Ranges: [${config.ranges.join(', ')}]</div>
+                    </div>
+                `;
+            });
+            
+            bucketFieldsList.innerHTML = html;
+            
+            // Add remove handlers
+            document.querySelectorAll('.remove-bucket-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    delete facetBuckets[btn.dataset.field];
+                    renderBucketFields();
+                });
+            });
+        }
+        
+        // Bucket config toggle
+        document.getElementById('bucketConfigToggle').addEventListener('click', () => {
+            const content = document.getElementById('bucketConfigContent');
+            const icon = document.getElementById('bucketToggleIcon');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        });
+        
+        // Add bucket button
+        document.getElementById('addBucketBtn').addEventListener('click', () => {
+            const fieldInput = document.getElementById('newBucketField');
+            const rangesInput = document.getElementById('newBucketRanges');
+            
+            const field = fieldInput.value.trim();
+            const rangesStr = rangesInput.value.trim();
+            
+            if (!field) {
+                alert('Please enter a field name');
+                return;
+            }
+            
+            if (!rangesStr) {
+                alert('Please enter ranges (e.g., 0,100,500,1000)');
+                return;
+            }
+            
+            // Parse ranges
+            const ranges = rangesStr.split(',').map(r => {
+                const num = parseFloat(r.trim());
+                if (isNaN(num)) {
+                    throw new Error(`Invalid number: ${r}`);
+                }
+                return num;
+            });
+            
+            if (ranges.length < 2) {
+                alert('Please enter at least 2 range values');
+                return;
+            }
+            
+            facetBuckets[field] = { ranges: ranges };
+            renderBucketFields();
+            
+            // Clear inputs
+            fieldInput.value = '';
+            rangesInput.value = '';
+        });
+        
+        renderBucketFields();
         
         // Time Range Picker Modal
         const timePickerModal = document.getElementById('timePickerModal');
@@ -1005,6 +1202,8 @@
             timeTo.value = '';
             currentTimeRange = { from: null, to: null };
             timeRangeDisplay.textContent = 'All time';
+            facetBuckets = {};
+            renderBucketFields();
             document.getElementById('message').innerHTML = '';
             document.getElementById('resultsCard').style.display = 'none';
             document.getElementById('facetsCard').style.display = 'none';
@@ -1070,7 +1269,12 @@
                 const topValues = allEntries.slice(0, MAX_SHOW);
                 const remainingValues = allEntries.slice(MAX_SHOW);
                 
-                html += `<h3 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #2c3e50;">${field} (${totalCount} total)</h3>`;
+                html += `
+                    <h3 style="margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1rem; color: #2c3e50; display: flex; align-items: center;">
+                        <span>${field} (${totalCount} total)</span>
+                        <span class="facet-gear" data-field="${field}" title="Configure bucketing for ${field}">⚙️</span>
+                    </h3>
+                `;
                 html += '<ul class="facet-list">';
                 
                 topValues.forEach(([value, count]) => {
@@ -1102,6 +1306,50 @@
             document.querySelectorAll('.facet-item[data-field]').forEach(item => {
                 item.addEventListener('click', () => {
                     addConstraint(item.dataset.field, item.dataset.value);
+                });
+            });
+            
+            // Add gear icon click handlers
+            document.querySelectorAll('.facet-gear').forEach(gear => {
+                gear.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const field = gear.dataset.field;
+                    
+                    // Prompt for ranges
+                    const currentRanges = facetBuckets[field] ? facetBuckets[field].ranges.join(',') : '';
+                    const rangesStr = prompt(`Enter range values for "${field}" (comma-separated numbers):\n\nExample: 0,100,500,1000\nThis creates buckets: <0, 0-100, 100-500, 500-1000, 1000+`, currentRanges);
+                    
+                    if (rangesStr === null) return; // User cancelled
+                    
+                    if (rangesStr.trim() === '') {
+                        // Remove bucketing for this field
+                        delete facetBuckets[field];
+                        renderBucketFields();
+                        alert(`Bucketing removed for "${field}". Run the search again to see changes.`);
+                        return;
+                    }
+                    
+                    try {
+                        // Parse ranges
+                        const ranges = rangesStr.split(',').map(r => {
+                            const num = parseFloat(r.trim());
+                            if (isNaN(num)) {
+                                throw new Error(`Invalid number: ${r}`);
+                            }
+                            return num;
+                        });
+                        
+                        if (ranges.length < 2) {
+                            alert('Please enter at least 2 range values');
+                            return;
+                        }
+                        
+                        facetBuckets[field] = { ranges: ranges };
+                        renderBucketFields();
+                        alert(`Bucketing configured for "${field}". Run the search again to see bucketed facets.`);
+                    } catch (error) {
+                        alert(`Error: ${error.message}`);
+                    }
                 });
             });
         }
@@ -1412,6 +1660,11 @@
                     requestBody.timestampTo = timestampTo;
                 }
                 
+                // Add facet buckets if specified
+                if (Object.keys(facetBuckets).length > 0) {
+                    requestBody.facetBuckets = facetBuckets;
+                }
+                
                 console.log('Search request:', requestBody);
                 
                 const response = await fetch('/api/search', {
@@ -1621,6 +1874,11 @@
             }
             if (currentTimeRange.to) {
                 curlBody.timestampTo = new Date(currentTimeRange.to + ':00Z').getTime();
+            }
+            
+            // Add facet buckets if present
+            if (Object.keys(facetBuckets).length > 0) {
+                curlBody.facetBuckets = facetBuckets;
             }
             
             const curlCmd = `curl -X POST '${apiUrl}' \\

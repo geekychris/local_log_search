@@ -135,7 +135,7 @@ public class SearchService {
         // Calculate facets if requested - use ALL matching documents, not just the page
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         if (request.isIncludeFacets()) {
-            facets = calculateFacetsFromAllHits(searcher, query, topDocs.totalHits.value);
+            facets = calculateFacetsFromAllHits(searcher, query, topDocs.totalHits.value, request.getFacetBuckets());
         }
         
         return new SearchResponse(results, (int) topDocs.totalHits.value, 0, results.size(), facets);
@@ -190,8 +190,10 @@ public class SearchService {
     /**
      * Calculate facets from ALL matching documents, not just the returned page.
      * This dynamically discovers fields and counts values across all hits.
+     * Supports bucketing numeric fields into ranges.
      */
-    private Map<String, Map<String, Integer>> calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits) throws IOException {
+    private Map<String, Map<String, Integer>> calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits, 
+                                                                           Map<String, SearchRequest.FacetBucketConfig> bucketConfigs) throws IOException {
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         
         if (totalHits == 0) {
@@ -218,13 +220,67 @@ public class SearchService {
                 
                 String value = field.stringValue();
                 if (value != null && !value.isEmpty()) {
-                    facets.computeIfAbsent(fieldName, k -> new HashMap<>())
-                          .merge(value, 1, Integer::sum);
+                    // Check if this field should be bucketed
+                    if (bucketConfigs != null && bucketConfigs.containsKey(fieldName)) {
+                        String bucketLabel = bucketValue(value, bucketConfigs.get(fieldName));
+                        if (bucketLabel != null) {
+                            facets.computeIfAbsent(fieldName, k -> new HashMap<>())
+                                  .merge(bucketLabel, 1, Integer::sum);
+                        }
+                    } else {
+                        // Normal faceting - count exact values
+                        facets.computeIfAbsent(fieldName, k -> new HashMap<>())
+                              .merge(value, 1, Integer::sum);
+                    }
                 }
             }
         }
         
         return facets;
+    }
+    
+    /**
+     * Bucket a numeric value into a range based on configuration
+     */
+    private String bucketValue(String value, SearchRequest.FacetBucketConfig config) {
+        try {
+            // Try to parse as numeric (remove non-numeric suffixes like "ms")
+            String numStr = value.replaceAll("[^0-9.\\-]", "");
+            double numValue = Double.parseDouble(numStr);
+            
+            List<Double> ranges = config.getRanges();
+            if (ranges == null || ranges.isEmpty()) {
+                return value;  // No ranges defined, return original
+            }
+            
+            // Sort ranges to ensure proper ordering
+            List<Double> sortedRanges = new ArrayList<>(ranges);
+            Collections.sort(sortedRanges);
+            
+            // Find which bucket the value falls into
+            for (int i = 0; i < sortedRanges.size(); i++) {
+                double lower = sortedRanges.get(i);
+                
+                if (i == sortedRanges.size() - 1) {
+                    // Last range - everything >= this value
+                    if (numValue >= lower) {
+                        return lower + "+";
+                    }
+                } else {
+                    double upper = sortedRanges.get(i + 1);
+                    if (numValue >= lower && numValue < upper) {
+                        return lower + "-" + upper;
+                    }
+                }
+            }
+            
+            // Value is less than smallest range
+            return "<" + sortedRanges.get(0);
+            
+        } catch (NumberFormatException e) {
+            // Not a number, return original value
+            return value;
+        }
     }
     
     private void mergeFacets(Map<String, Map<String, Integer>> target, Map<String, Map<String, Integer>> source) {
