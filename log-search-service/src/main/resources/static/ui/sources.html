@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Sources - Local Log Search</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .form-hint {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .edit-btn {
+            background: #f39c12;
+        }
+        .edit-btn:hover {
+            background: #e67e22;
+        }
+        button.secondary {
+            background: #95a5a6;
+        }
+        button.secondary:hover {
+            background: #7f8c8d;
+        }
+        button.danger {
+            background: #e74c3c;
+        }
+        button.danger:hover {
+            background: #c0392b;
+        }
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .sources-list {
+            margin-top: 1rem;
+        }
+        .source-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .source-info {
+            flex: 1;
+        }
+        .source-path {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+        .source-meta {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        .source-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .source-actions button {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+        .message {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            overflow: auto;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .modal-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+        .modal-close:hover {
+            color: #000;
+        }
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            resize: vertical;
+            min-height: 100px;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .parsed-output {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+            margin-top: 1rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+        .parsed-field {
+            margin: 0.25rem 0;
+        }
+        .field-key {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .field-value {
+            color: #2c3e50;
+        }
+        .parser-test-section {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        .line-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid #eee;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+        }
+        .line-item:hover {
+            background: #f8f9fa;
+        }
+        .line-item input[type="checkbox"] {
+            margin-top: 0.25rem;
+            cursor: pointer;
+        }
+        .line-number {
+            color: #999;
+            min-width: 3rem;
+            text-align: right;
+        }
+        .line-text {
+            flex: 1;
+            word-break: break-all;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📁 Log Sources Configuration</h1>
+        <div class="nav-links">
+            <a href="/ui/index.html">🔍 Search</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Add Source Form -->
+        <div class="card">
+            <h2>Add New Log Source</h2>
+            <form id="addSourceForm">
+                <div class="form-group">
+                    <label for="filePath">File Path *</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="filePath" placeholder="/path/to/logfile.log" required style="flex: 1;">
+                        <input type="file" id="fileInput" style="display: none;">
+                        <button type="button" class="secondary" onclick="document.getElementById('fileInput').click()">Browse</button>
+                        <button type="button" class="secondary" id="loadPreview">Load Preview</button>
+                    </div>
+                    <div class="form-hint">Absolute path to the log file to tail</div>
+                </div>
+                
+                <!-- Live Preview Section -->
+                <div id="previewSection" style="display: none;">
+                    <div class="parser-test-section">
+                        <h3>Select Log Lines to Test</h3>
+                        <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">
+                            Select lines from the log file to test with the parser. 
+                            <button type="button" class="secondary" onclick="selectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">Select All</button>
+                            <button type="button" class="secondary" onclick="deselectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Deselect All</button>
+                        </p>
+                        <div id="lineSelector" style="background: white; padding: 0.75rem; border-radius: 4px; max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #ddd;"></div>
+                        <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: bold;">How selected lines will be parsed:</p>
+                        <div id="previewResult"></div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="indexName">Index Name *</label>
+                    <input type="text" id="indexName" placeholder="app-logs" required>
+                    <div class="form-hint">Name of the Lucene index to store logs</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="parserType">Parser Type *</label>
+                    <select id="parserType" required onchange="updatePreview()">
+                        <option value="keyvalue">Key-Value (default)</option>
+                        <option value="regex">Regular Expression</option>
+                        <option value="grok">Grok Pattern</option>
+                    </select>
+                    <div class="form-hint">How to parse log entries and extract fields</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="parserConfig">Parser Configuration (optional)</label>
+                    <input type="text" id="parserConfig" placeholder='{"pattern": "...", "field.1": "timestamp"}' oninput="updatePreview()">
+                    <div class="form-hint">JSON configuration for regex/grok parsers (leave empty for key-value)</div>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit">Add Source</button>
+                    <button type="button" class="secondary" id="clearForm">Clear</button>
+                </div>
+            </form>
+            
+            <div id="addMessage"></div>
+        </div>
+        
+        <!-- Existing Sources -->
+        <div class="card">
+            <h2>Active Log Sources</h2>
+            <div id="loadingMessage" class="loading">Loading sources...</div>
+            <div id="sourcesMessage"></div>
+            <div id="sourcesList" class="sources-list"></div>
+        </div>
+        
+        <!-- Index Metrics -->
+        <div class="card">
+            <h2>Index Metrics</h2>
+            <div id="indicesLoading" class="loading">Loading indices...</div>
+            <div id="indicesMessage"></div>
+            <div id="indicesList" class="sources-list"></div>
+        </div>
+    </div>
+
+    <!-- Edit Source Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Log Source</h2>
+            
+            <form id="editSourceForm">
+                <input type="hidden" id="editSourceId">
+                
+                <div class="form-group">
+                    <label for="editFilePath">File Path *</label>
+                    <input type="text" id="editFilePath" required disabled>
+                    <div class="form-hint">File path cannot be changed</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editIndexName">Index Name *</label>
+                    <input type="text" id="editIndexName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editParserType">Parser Type *</label>
+                    <select id="editParserType" required onchange="updateParserTest()">
+                        <option value="keyvalue">Key-Value</option>
+                        <option value="regex">Regular Expression</option>
+                        <option value="grok">Grok Pattern</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editParserConfig">Parser Configuration</label>
+                    <input type="text" id="editParserConfig" placeholder='{"pattern": "..."}' oninput="updateParserTest()">
+                    <div class="form-hint">JSON configuration for parser</div>
+                </div>
+                
+                <div class="parser-test-section">
+                    <h3>Parser Test</h3>
+                    <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">Paste a sample log entry to see how it will be parsed:</p>
+                    <textarea id="testLogEntry" rows="3" placeholder="Paste a sample log entry here..." oninput="updateParserTest()"></textarea>
+                    <div id="parseResult"></div>
+                </div>
+                
+                <div id="editMessage"></div>
+                
+                <div class="button-group">
+                    <button type="submit">Save Changes</button>
+                    <button type="button" class="secondary" onclick="closeEditModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // State for preview
+        let allLoadedLines = [];
+        let previewUpdateTimeout = null;
+        
+        // Load existing sources and indices on page load
+        window.addEventListener('load', () => {
+            loadSources();
+            loadIndices();
+        });
+        
+        // File input handler
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                document.getElementById('filePath').value = file.path || file.name;
+            }
+        });
+        
+        // Load preview button handler
+        document.getElementById('loadPreview').addEventListener('click', async () => {
+            const filePath = document.getElementById('filePath').value.trim();
+            if (!filePath) {
+                showMessage('addMessage', 'Please enter a file path first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/file/preview', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filePath: filePath, maxLines: 100 })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load file preview');
+                }
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    showMessage('addMessage', result.error, 'error');
+                    document.getElementById('previewSection').style.display = 'none';
+                    return;
+                }
+                
+                allLoadedLines = result.lines || [];
+                
+                if (allLoadedLines.length === 0) {
+                    showMessage('addMessage', 'No lines found in file', 'error');
+                    document.getElementById('previewSection').style.display = 'none';
+                    return;
+                }
+                
+                // Create line selector with checkboxes
+                const lineSelectorHtml = allLoadedLines.map((line, index) => `
+                    <div class="line-item">
+                        <input type="checkbox" id="line-${index}" value="${index}" onchange="updatePreview()" ${index < 5 ? 'checked' : ''}>
+                        <span class="line-number">${index + 1}</span>
+                        <label for="line-${index}" class="line-text">${escapeHtml(line)}</label>
+                    </div>
+                `).join('');
+                
+                document.getElementById('lineSelector').innerHTML = lineSelectorHtml;
+                document.getElementById('previewSection').style.display = 'block';
+                
+                // Parse and show preview of initially selected lines
+                updatePreview();
+                
+            } catch (error) {
+                showMessage('addMessage', `Error loading preview: ${error.message}`, 'error');
+            }
+        });
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Select/deselect all lines
+        function selectAllLines() {
+            const checkboxes = document.querySelectorAll('#lineSelector input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = true);
+            updatePreview();
+        }
+        
+        function deselectAllLines() {
+            const checkboxes = document.querySelectorAll('#lineSelector input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = false);
+            updatePreview();
+        }
+        
+        // Update preview with debouncing
+        async function updatePreview() {
+            clearTimeout(previewUpdateTimeout);
+            
+            if (allLoadedLines.length === 0) {
+                return;
+            }
+            
+            // Get selected lines
+            const selectedCheckboxes = document.querySelectorAll('#lineSelector input[type="checkbox"]:checked');
+            const selectedLines = Array.from(selectedCheckboxes).map(cb => allLoadedLines[parseInt(cb.value)]);
+            
+            const parserType = document.getElementById('parserType').value;
+            const parserConfigStr = document.getElementById('parserConfig').value.trim();
+            const resultEl = document.getElementById('previewResult');
+            
+            if (selectedLines.length === 0) {
+                resultEl.innerHTML = '<div style="color: #999; font-style: italic;">No lines selected. Please select at least one line to preview parsing.</div>';
+                return;
+            }
+            
+            // Debounce: wait 500ms after user stops typing
+            previewUpdateTimeout = setTimeout(async () => {
+                let parserConfig = null;
+                if (parserConfigStr) {
+                    try {
+                        parserConfig = JSON.parse(parserConfigStr);
+                    } catch (e) {
+                        resultEl.innerHTML = '<div class="parsed-output" style="border-color: #e74c3c;"><strong>Error:</strong> Invalid JSON in parser configuration</div>';
+                        return;
+                    }
+                }
+                
+                // Parse each selected line
+                const parsedResults = [];
+                for (const line of selectedLines) {
+                    try {
+                        const response = await fetch('/api/parser/test', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                logEntry: line,
+                                parserType: parserType,
+                                parserConfig: parserConfig
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to test parser');
+                        }
+                        
+                        const result = await response.json();
+                        parsedResults.push({ line, result });
+                        
+                    } catch (error) {
+                        parsedResults.push({ line, error: error.message });
+                    }
+                }
+                
+                // Display results
+                resultEl.innerHTML = parsedResults.map(({ line, result, error }) => {
+                    if (error) {
+                        return `
+                            <div class="parsed-output" style="border-color: #e74c3c; margin-bottom: 1rem;">
+                                <div style="margin-bottom: 0.5rem; color: #666; font-size: 0.8rem;">Input: ${line.substring(0, 60)}${line.length > 60 ? '...' : ''}</div>
+                                <strong>Error:</strong> ${error}
+                            </div>
+                        `;
+                    }
+                    
+                    if (result.error) {
+                        return `
+                            <div class="parsed-output" style="border-color: #e74c3c; margin-bottom: 1rem;">
+                                <div style="margin-bottom: 0.5rem; color: #666; font-size: 0.8rem;">Input: ${line.substring(0, 60)}${line.length > 60 ? '...' : ''}</div>
+                                <strong>Error:</strong> ${result.error}
+                            </div>
+                        `;
+                    }
+                    
+                    const fields = result.fields || {};
+                    const fieldsList = Object.entries(fields).map(([key, value]) => 
+                        `<div class="parsed-field"><span class="field-key">${key}:</span> <span class="field-value">${value}</span></div>`
+                    ).join('');
+                    
+                    return `
+                        <div class="parsed-output" style="border-color: #27ae60; margin-bottom: 1rem;">
+                            <div style="margin-bottom: 0.5rem; color: #666; font-size: 0.8rem;">Input: ${line.substring(0, 60)}${line.length > 60 ? '...' : ''}</div>
+                            ${fieldsList}
+                            ${result.timestamp ? `<div class="parsed-field"><span class="field-key">timestamp:</span> <span class="field-value">${new Date(result.timestamp).toISOString()}</span></div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }, 500);
+        }
+        
+        // Add source form handler
+        document.getElementById('addSourceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const filePath = document.getElementById('filePath').value.trim();
+            const indexName = document.getElementById('indexName').value.trim();
+            const parserType = document.getElementById('parserType').value;
+            const parserConfigStr = document.getElementById('parserConfig').value.trim();
+            
+            let parserConfig = null;
+            if (parserConfigStr) {
+                try {
+                    parserConfig = JSON.parse(parserConfigStr);
+                } catch (e) {
+                    showMessage('addMessage', 'Invalid JSON in parser configuration', 'error');
+                    return;
+                }
+            }
+            
+            const source = {
+                filePath: filePath,
+                indexName: indexName,
+                parserType: parserType,
+                enabled: true
+            };
+            
+            if (parserConfig) {
+                source.parserConfig = parserConfig;
+            }
+            
+            try {
+                const response = await fetch('/api/sources', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(source)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Failed to add source');
+                }
+                
+                const result = await response.json();
+                showMessage('addMessage', `Source added successfully: ${result.filePath}`, 'success');
+                document.getElementById('addSourceForm').reset();
+                
+                // Reload sources and indices list
+                setTimeout(() => {
+                    loadSources();
+                    loadIndices();
+                }, 500);
+                
+            } catch (error) {
+                showMessage('addMessage', `Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Clear form
+        document.getElementById('clearForm').addEventListener('click', () => {
+            document.getElementById('addSourceForm').reset();
+            document.getElementById('addMessage').innerHTML = '';
+        });
+        
+        // Load sources
+        async function loadSources() {
+            const loadingEl = document.getElementById('loadingMessage');
+            const messageEl = document.getElementById('sourcesMessage');
+            const listEl = document.getElementById('sourcesList');
+            
+            loadingEl.style.display = 'block';
+            messageEl.innerHTML = '';
+            listEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/sources');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load sources');
+                }
+                
+                const sources = await response.json();
+                
+                loadingEl.style.display = 'none';
+                
+                if (sources.length === 0) {
+                    messageEl.innerHTML = '<div class="message">No log sources configured. Add one above to start indexing logs.</div>';
+                    return;
+                }
+                
+                listEl.innerHTML = sources.map(source => `
+                    <div class="source-item">
+                        <div class="source-info">
+                            <div class="source-path">${source.filePath}</div>
+                            <div class="source-meta">
+                                Index: <strong>${source.indexName}</strong> | 
+                                Parser: <strong>${source.parserType}</strong> | 
+                                Status: <strong>${source.enabled ? 'Enabled' : 'Disabled'}</strong>
+                                ${source.id ? ` | ID: ${source.id}` : ''}
+                            </div>
+                        </div>
+                        <div class="source-actions">
+                            <button onclick="editSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}', '${source.parserType}', ${source.parserConfig ? "'" + JSON.stringify(source.parserConfig).replace(/'/g, "\\'") + "'" : 'null'})">Edit</button>
+                            <button class="danger" onclick="deleteSource('${source.id || source.filePath}', '${source.filePath}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                showMessage('sourcesMessage', `Error loading sources: ${error.message}`, 'error');
+            }
+        }
+        
+        // Delete source
+        async function deleteSource(id, filePath) {
+            if (!confirm(`Delete log source: ${filePath}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/sources/${encodeURIComponent(id)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete source');
+                }
+                
+                showMessage('sourcesMessage', `Source deleted: ${filePath}`, 'success');
+                
+                setTimeout(() => {
+                    loadSources();
+                    loadIndices();
+                }, 500);
+                
+            } catch (error) {
+                showMessage('sourcesMessage', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Load indices
+        async function loadIndices() {
+            const loadingEl = document.getElementById('indicesLoading');
+            const messageEl = document.getElementById('indicesMessage');
+            const listEl = document.getElementById('indicesList');
+            
+            loadingEl.style.display = 'block';
+            messageEl.innerHTML = '';
+            listEl.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/indices');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load indices');
+                }
+                
+                const indices = await response.json();
+                
+                loadingEl.style.display = 'none';
+                
+                if (indices.length === 0) {
+                    messageEl.innerHTML = '<div class="message">No indices found. Indices are created automatically when log sources are added.</div>';
+                    return;
+                }
+                
+                listEl.innerHTML = indices.map(index => `
+                    <div class="source-item">
+                        <div class="source-info">
+                            <div class="source-path">${index.name}</div>
+                            <div class="source-meta">
+                                Documents: <strong>${index.documentCount.toLocaleString()}</strong> | 
+                                Size: <strong>${index.sizeFormatted}</strong> | 
+                                Path: <code>${index.path}</code>
+                            </div>
+                        </div>
+                        <div class="source-actions">
+                            <button class="secondary" onclick="clearIndex('${index.name}')">Clear</button>
+                            <button class="danger" onclick="deleteIndex('${index.name}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                showMessage('indicesMessage', `Error loading indices: ${error.message}`, 'error');
+            }
+        }
+        
+        // Clear index
+        async function clearIndex(indexName) {
+            if (!confirm(`Clear all documents from index "${indexName}"? This cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/indices/${encodeURIComponent(indexName)}/clear`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to clear index');
+                }
+                
+                showMessage('indicesMessage', `Index cleared: ${indexName}`, 'success');
+                
+                setTimeout(() => {
+                    loadIndices();
+                }, 500);
+                
+            } catch (error) {
+                showMessage('indicesMessage', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Delete index
+        async function deleteIndex(indexName) {
+            if (!confirm(`Delete index "${indexName}" and all its data? This cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/indices/${encodeURIComponent(indexName)}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete index');
+                }
+                
+                showMessage('indicesMessage', `Index deleted: ${indexName}`, 'success');
+                
+                setTimeout(() => {
+                    loadIndices();
+                }, 500);
+                
+            } catch (error) {
+                showMessage('indicesMessage', `Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Edit source
+        function editSource(id, filePath, indexName, parserType, parserConfigStr) {
+            document.getElementById('editSourceId').value = id;
+            document.getElementById('editFilePath').value = filePath;
+            document.getElementById('editIndexName').value = indexName;
+            document.getElementById('editParserType').value = parserType;
+            
+            if (parserConfigStr && parserConfigStr !== 'null') {
+                try {
+                    const config = typeof parserConfigStr === 'string' ? JSON.parse(parserConfigStr) : parserConfigStr;
+                    document.getElementById('editParserConfig').value = JSON.stringify(config, null, 2);
+                } catch (e) {
+                    document.getElementById('editParserConfig').value = '';
+                }
+            } else {
+                document.getElementById('editParserConfig').value = '';
+            }
+            
+            document.getElementById('testLogEntry').value = '';
+            document.getElementById('parseResult').innerHTML = '';
+            document.getElementById('editMessage').innerHTML = '';
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+        
+        // Edit form handler
+        document.getElementById('editSourceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('editSourceId').value;
+            const indexName = document.getElementById('editIndexName').value.trim();
+            const parserType = document.getElementById('editParserType').value;
+            const parserConfigStr = document.getElementById('editParserConfig').value.trim();
+            
+            let parserConfig = null;
+            if (parserConfigStr) {
+                try {
+                    parserConfig = JSON.parse(parserConfigStr);
+                } catch (e) {
+                    showMessage('editMessage', 'Invalid JSON in parser configuration', 'error');
+                    return;
+                }
+            }
+            
+            const source = {
+                filePath: document.getElementById('editFilePath').value,
+                indexName: indexName,
+                parserType: parserType,
+                enabled: true
+            };
+            
+            if (parserConfig) {
+                source.parserConfig = parserConfig;
+            }
+            
+            try {
+                const response = await fetch(`/api/sources/${encodeURIComponent(id)}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(source)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Failed to update source');
+                }
+                
+                showMessage('editMessage', 'Source updated successfully', 'success');
+                
+                setTimeout(() => {
+                    closeEditModal();
+                    loadSources();
+                    loadIndices();
+                }, 1000);
+                
+            } catch (error) {
+                showMessage('editMessage', `Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Parser test with debouncing
+        let parserTestTimeout = null;
+        async function updateParserTest() {
+            clearTimeout(parserTestTimeout);
+            
+            const logEntry = document.getElementById('testLogEntry').value.trim();
+            const parserType = document.getElementById('editParserType').value;
+            const parserConfigStr = document.getElementById('editParserConfig').value.trim();
+            const resultEl = document.getElementById('parseResult');
+            
+            if (!logEntry) {
+                resultEl.innerHTML = '';
+                return;
+            }
+            
+            // Debounce: wait 500ms after user stops typing
+            parserTestTimeout = setTimeout(async () => {
+                let parserConfig = null;
+                if (parserConfigStr) {
+                    try {
+                        parserConfig = JSON.parse(parserConfigStr);
+                    } catch (e) {
+                        resultEl.innerHTML = '<div class="parsed-output" style="border-color: #e74c3c;"><strong>Error:</strong> Invalid JSON in parser configuration</div>';
+                        return;
+                    }
+                }
+                
+                try {
+                    const response = await fetch('/api/parser/test', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            logEntry: logEntry,
+                            parserType: parserType,
+                            parserConfig: parserConfig
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to test parser');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.error) {
+                        resultEl.innerHTML = `<div class="parsed-output" style="border-color: #e74c3c;"><strong>Error:</strong> ${result.error}</div>`;
+                    } else {
+                        const fields = result.fields || {};
+                        const fieldsList = Object.entries(fields).map(([key, value]) => 
+                            `<div class="parsed-field"><span class="field-key">${key}:</span> <span class="field-value">${value}</span></div>`
+                        ).join('');
+                        
+                        resultEl.innerHTML = `
+                            <div class="parsed-output" style="border-color: #27ae60;">
+                                <strong>Parsed Fields:</strong>
+                                ${fieldsList}
+                                ${result.timestamp ? `<div class="parsed-field"><span class="field-key">timestamp:</span> <span class="field-value">${new Date(result.timestamp).toISOString()}</span></div>` : ''}
+                            </div>
+                        `;
+                    }
+                    
+                } catch (error) {
+                    resultEl.innerHTML = `<div class="parsed-output" style="border-color: #e74c3c;"><strong>Error:</strong> ${error.message}</div>`;
+                }
+            }, 500);
+        }
+        
+        function showMessage(elementId, message, type) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = `<div class="message ${type}">${message}</div>`;
+            
+            setTimeout(() => {
+                el.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

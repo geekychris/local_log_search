@@ -352,6 +352,86 @@ level:ERROR | timechart span=1h count
 status:slow | stats count max(duration) by operation | chart type=bar count by operation
 ```
 
+### Query Sharing
+
+Share queries with team members or save them for later use. When viewing search results, click the **"📋 Share Query"** button to access:
+
+#### Shareable URL
+A URL that includes all query parameters and can be bookmarked or shared:
+```
+http://localhost:8080/ui/index.html?q=level:ERROR&indices=app-logs&from=2025-01-14&to=2025-01-15
+```
+
+**URL Parameters:**
+- `q` - Query string
+- `indices` - Comma-separated index names
+- `from` - Start date (YYYY-MM-DD)
+- `to` - End date (YYYY-MM-DD)
+- `sort` - Sort field (default: timestamp)
+- `order` - Sort order: `asc` or `desc` (default: desc)
+
+**Features:**
+- URLs are automatically parsed when loading the page
+- Query executes automatically if `q` parameter is present
+- All query parameters and date ranges are preserved
+- Click "Copy" to copy URL to clipboard
+
+#### cURL Command
+A ready-to-use curl command for API access:
+```bash
+curl -X POST 'http://localhost:8080/api/search' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "indices": ["app-logs"],
+  "query": "level:ERROR",
+  "page": 0,
+  "pageSize": 50,
+  "sortField": "timestamp",
+  "sortDescending": true,
+  "includeFacets": true
+}' | jq
+```
+
+**Usage:**
+1. Run a query in the UI
+2. Click "📋 Share Query" button
+3. Choose "Copy" for URL or cURL command
+4. Share with team members or save for documentation
+
+### Time Range Selection on Charts
+
+For time-series charts (timechart command), you can interactively select a time range directly on the chart:
+
+**How to Use:**
+1. Run a timechart query (e.g., `level:ERROR | timechart span=1h count`)
+2. **Click and drag** on the chart to select a time range
+3. The selected time range is automatically applied to the date filters
+4. Click **Search** to re-run the query with the selected time range
+5. **Double-click** on the chart to reset zoom
+
+**Features:**
+- **Drag to zoom**: Click and drag horizontally to select a time range
+- **Pan**: Click and drag to pan left/right after zooming
+- **Auto-update**: Date filters (From/To) are automatically updated with the selected range
+- **Visual feedback**: Blue highlight shows the selected region
+- **Reset zoom**: Double-click anywhere on the chart to reset to full view
+
+**Example Workflow:**
+```
+1. Query: level:ERROR | timechart span=1h count
+2. Identify a spike in errors on the chart
+3. Click and drag over the spike to zoom in
+4. Date filters update automatically (e.g., from 2025-01-14 to 2025-01-14)
+5. Click Search to see detailed logs from that time range
+6. Optionally modify the query to investigate further
+```
+
+**Tips:**
+- Works best with timechart queries that have a time axis
+- Pinch gestures supported on touch devices
+- Time range selection appears as a notification for 5 seconds
+- Combine with pipe commands to drill down into specific issues
+
 ## Example Workflow
 
 ### 1. Start the Test Generator

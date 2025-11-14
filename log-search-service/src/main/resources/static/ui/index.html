@@ -6,6 +6,7 @@
     <title>Local Log Search</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -121,6 +122,12 @@
         button.secondary:hover {
             background: #7f8c8d;
         }
+        button.share {
+            background: #16a085;
+        }
+        button.share:hover {
+            background: #138d75;
+        }
         .button-group {
             display: flex;
             gap: 0.5rem;
@@ -197,6 +204,129 @@
             font-size: 0.875rem;
             cursor: pointer;
             transition: background 0.2s;
+        }
+        .share-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .share-modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .share-modal-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .share-modal-close:hover,
+        .share-modal-close:focus {
+            color: #000;
+        }
+        .share-option {
+            margin: 1rem 0;
+        }
+        .share-option label {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+        .share-code {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+            word-break: break-all;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .copy-btn:hover {
+            background: #2980b9;
+        }
+        .time-picker-btn {
+            background: #16a085;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .time-picker-btn:hover {
+            background: #138d75;
+        }
+        .time-picker-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .time-picker-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .time-picker-content h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .time-input-group {
+            margin: 1rem 0;
+        }
+        .time-input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        .time-input-group input[type="datetime-local"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .time-range-display {
+            color: #666;
+            font-size: 0.875rem;
+            font-style: italic;
         }
         .history-item:hover {
             background: #e9ecef;
@@ -350,6 +480,7 @@
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="search">Search</a>
             <a href="#" class="nav-link" data-page="examples">Query Examples</a>
+            <a href="/ui/sources.html" class="nav-link">📁 Log Sources</a>
         </div>
     </div>
     
@@ -373,11 +504,11 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Date Range (optional)</label>
-                                <div class="date-range">
-                                    <input type="date" id="dateFrom" placeholder="From">
-                                    <input type="date" id="dateTo" placeholder="To">
-                                </div>
+                                <label>Time Range (optional)</label>
+                                <button type="button" class="time-picker-btn" id="timeRangeBtn">
+                                    🕐 Select Time Range
+                                </button>
+                                <div class="time-range-display" id="timeRangeDisplay">All time</div>
                             </div>
                             <div class="button-group">
                                 <button type="submit">Search</button>
@@ -389,7 +520,10 @@
                     </div>
                     
                     <div class="card" id="resultsCard" style="display:none;">
-                        <h2>Results (<span id="totalHits">0</span> hits)</h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h2 style="margin: 0;">Results (<span id="totalHits">0</span> hits)</h2>
+                            <button class="share" id="shareBtn">📋 Share Query</button>
+                        </div>
                         <div class="sort-controls">
                             <label for="sortField">Sort by:</label>
                             <select id="sortField">
@@ -598,6 +732,54 @@
         </div>
     </div>
 
+    <!-- Time Range Picker Modal -->
+    <div id="timePickerModal" class="time-picker-modal">
+        <div class="time-picker-content">
+            <span class="share-modal-close" id="timePickerClose">&times;</span>
+            <h3>Select Time Range</h3>
+            
+            <div class="time-input-group">
+                <label for="timeFrom">From</label>
+                <input type="datetime-local" id="timeFrom">
+            </div>
+            
+            <div class="time-input-group">
+                <label for="timeTo">To</label>
+                <input type="datetime-local" id="timeTo">
+            </div>
+            
+            <div class="button-group" style="margin-top: 1.5rem;">
+                <button type="button" id="applyTimeRange">Apply</button>
+                <button type="button" class="secondary" id="clearTimeRange">Clear</button>
+                <button type="button" class="secondary" id="cancelTimeRange">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Query Modal -->
+    <div id="shareModal" class="share-modal">
+        <div class="share-modal-content">
+            <span class="share-modal-close" id="shareModalClose">&times;</span>
+            <h2>Share Query</h2>
+            
+            <div class="share-option">
+                <label>Shareable URL</label>
+                <div class="share-code">
+                    <button class="copy-btn" data-copy="url">Copy</button>
+                    <div id="shareUrl"></div>
+                </div>
+            </div>
+            
+            <div class="share-option">
+                <label>cURL Command</label>
+                <div class="share-code">
+                    <button class="copy-btn" data-copy="curl">Copy</button>
+                    <div id="shareCurl"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State management
         let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
@@ -605,8 +787,14 @@
         // Page navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
-                e.preventDefault();
                 const page = e.target.dataset.page;
+                
+                // If no data-page attribute, allow default navigation (external links)
+                if (!page) {
+                    return;
+                }
+                
+                e.preventDefault();
                 
                 // Update active nav
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -681,11 +869,68 @@
             renderHistory();
         });
         
+        // Time Range Picker Modal
+        const timePickerModal = document.getElementById('timePickerModal');
+        const timeRangeBtn = document.getElementById('timeRangeBtn');
+        const timePickerClose = document.getElementById('timePickerClose');
+        const applyTimeRange = document.getElementById('applyTimeRange');
+        const clearTimeRange = document.getElementById('clearTimeRange');
+        const cancelTimeRange = document.getElementById('cancelTimeRange');
+        const timeFrom = document.getElementById('timeFrom');
+        const timeTo = document.getElementById('timeTo');
+        const timeRangeDisplay = document.getElementById('timeRangeDisplay');
+        
+        // Store time range globally
+        let currentTimeRange = { from: null, to: null };
+        
+        timeRangeBtn.addEventListener('click', () => {
+            timePickerModal.style.display = 'block';
+        });
+        
+        timePickerClose.addEventListener('click', () => {
+            timePickerModal.style.display = 'none';
+        });
+        
+        cancelTimeRange.addEventListener('click', () => {
+            timePickerModal.style.display = 'none';
+        });
+        
+        applyTimeRange.addEventListener('click', () => {
+            currentTimeRange.from = timeFrom.value;
+            currentTimeRange.to = timeTo.value;
+            
+            if (currentTimeRange.from || currentTimeRange.to) {
+                const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() : 'Start';
+                const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() : 'End';
+                timeRangeDisplay.textContent = `${fromStr} → ${toStr}`;
+            } else {
+                timeRangeDisplay.textContent = 'All time';
+            }
+            
+            timePickerModal.style.display = 'none';
+        });
+        
+        clearTimeRange.addEventListener('click', () => {
+            timeFrom.value = '';
+            timeTo.value = '';
+            currentTimeRange = { from: null, to: null };
+            timeRangeDisplay.textContent = 'All time';
+            timePickerModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === timePickerModal) {
+                timePickerModal.style.display = 'none';
+            }
+        });
+        
         // Clear button
         document.getElementById('clearBtn').addEventListener('click', () => {
             document.getElementById('query').value = '';
-            document.getElementById('dateFrom').value = '';
-            document.getElementById('dateTo').value = '';
+            timeFrom.value = '';
+            timeTo.value = '';
+            currentTimeRange = { from: null, to: null };
+            timeRangeDisplay.textContent = 'All time';
             document.getElementById('message').innerHTML = '';
             document.getElementById('resultsCard').style.display = 'none';
             document.getElementById('facetsCard').style.display = 'none';
@@ -883,7 +1128,7 @@
                 window.myChart.destroy();
             }
             
-            resultsEl.innerHTML = '<canvas id="resultChart"></canvas>';
+            resultsEl.innerHTML = '<div style="margin-bottom: 0.5rem; color: #666; font-size: 0.875rem;">💡 Tip: Click and drag to select a time range. Selection will set the time filter and re-run search without zooming the chart.</div><canvas id="resultChart"></canvas>';
             const canvas = document.getElementById('resultChart');
             
             const datasets = [];
@@ -914,6 +1159,56 @@
                     plugins: {
                         legend: {
                             display: true
+                        },
+                        zoom: {
+                            zoom: {
+                                wheel: {
+                                    enabled: false
+                                },
+                                pinch: {
+                                    enabled: false
+                                },
+                                drag: {
+                                    enabled: true,
+                                    backgroundColor: 'rgba(52, 152, 219, 0.3)',
+                                    borderColor: 'rgba(52, 152, 219, 0.8)',
+                                    borderWidth: 1
+                                },
+                                mode: 'x',
+                                onZoomComplete: ({chart}) => {
+                                    // Prevent infinite recursion from resetZoom triggering this again
+                                    if (isResettingZoom) {
+                                        return false;
+                                    }
+                                    
+                                    // FIRST: Capture the zoom range while it's still available
+                                    const xScale = chart.scales.x;
+                                    const labels = chart.data.labels;
+                                    const minIndex = Math.floor(xScale.min);
+                                    const maxIndex = Math.ceil(xScale.max);
+                                    
+                                    // SECOND: Reset zoom immediately with flag set
+                                    isResettingZoom = true;
+                                    chart.resetZoom();
+                                    isResettingZoom = false;
+                                    
+                                    // THIRD: Process the captured range
+                                    if (minIndex >= 0 && maxIndex < labels.length && minIndex !== maxIndex) {
+                                        const startTime = labels[minIndex];
+                                        const endTime = labels[maxIndex];
+                                        console.log('Zoom detected - minIndex:', minIndex, 'maxIndex:', maxIndex, 'labels.length:', labels.length);
+                                        handleTimeRangeSelection(startTime, endTime);
+                                    } else {
+                                        console.log('Zoom ignored - minIndex:', minIndex, 'maxIndex:', maxIndex, 'labels.length:', labels.length);
+                                    }
+                                    
+                                    return false;
+                                }
+                            },
+                            pan: {
+                                enabled: false,
+                                mode: 'x'
+                            }
                         }
                     },
                     scales: {
@@ -925,16 +1220,60 @@
             });
         }
         
+        function handleTimeRangeSelection(startTime, endTime) {
+            console.log('Time range selected:', startTime, 'to', endTime);
+            
+            // Convert timestamp strings to dates
+            // The chart labels are ISO strings or formatted timestamps, parse them correctly
+            let startDate, endDate;
+            
+            // Try to parse as ISO string first (most common from backend)
+            if (startTime.includes('T') || startTime.includes('Z')) {
+                startDate = new Date(startTime);
+            } else {
+                // If it's a formatted string like "2025-11-13 17:00", treat as UTC
+                startDate = new Date(startTime + 'Z');
+            }
+            
+            if (endTime.includes('T') || endTime.includes('Z')) {
+                endDate = new Date(endTime);
+            } else {
+                endDate = new Date(endTime + 'Z');
+            }
+            
+            console.log('Parsed dates - start:', startDate.toISOString(), 'end:', endDate.toISOString());
+            
+            // Update time range with datetime-local format
+            const fromISO = startDate.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+            const toISO = endDate.toISOString().slice(0, 16);
+            
+            timeFrom.value = fromISO;
+            timeTo.value = toISO;
+            currentTimeRange.from = fromISO;
+            currentTimeRange.to = toISO;
+            
+            // Update display
+            timeRangeDisplay.textContent = `${startDate.toLocaleString()} → ${endDate.toLocaleString()}`;
+            
+            // Show notification and automatically trigger search
+            const messageEl = document.getElementById('message');
+            messageEl.innerHTML = `<div class="success">🔍 Time range selected: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}. Re-running search...</div>`;
+            
+            // Automatically trigger search
+            setTimeout(() => {
+                performSearch(0);
+            }, 500);
+        }
+        
         // Search state
         let currentPage = 0;
         let lastSearchParams = null;
+        let isResettingZoom = false;
         
         // Perform search
         async function performSearch(page = 0) {
             const indices = document.getElementById('indices').value.split(',').map(s => s.trim()).filter(s => s);
             let query = document.getElementById('query').value.trim();
-            const dateFrom = document.getElementById('dateFrom').value;
-            const dateTo = document.getElementById('dateTo').value;
             const sortField = document.getElementById('sortField').value;
             const sortOrder = document.getElementById('sortOrder').value;
             
@@ -960,12 +1299,15 @@
                 return;
             }
             
-            // Add date range to query if specified
-            if (dateFrom || dateTo) {
-                const from = dateFrom || '*';
-                const to = dateTo || '*';
-                const dateQuery = `timestamp:[${from} TO ${to}]`;
-                query = query ? `(${query}) AND ${dateQuery}` : dateQuery;
+            // Prepare timestamp range for API request (sent as separate fields, not in query string)
+            let timestampFrom = null;
+            let timestampTo = null;
+            
+            if (currentTimeRange.from || currentTimeRange.to) {
+                timestampFrom = currentTimeRange.from ? new Date(currentTimeRange.from).getTime() : null;
+                timestampTo = currentTimeRange.to ? new Date(currentTimeRange.to).getTime() : null;
+                
+                console.log('Adding time filter - from:', timestampFrom, timestampFrom ? '(' + new Date(timestampFrom).toISOString() + ')' : '', 'to:', timestampTo, timestampTo ? '(' + new Date(timestampTo).toISOString() + ')' : '');
             }
             
             // Save search params
@@ -975,20 +1317,32 @@
             messageEl.innerHTML = '<div class="loading">Searching...</div>';
             
             try {
+                const requestBody = {
+                    indices: indices,
+                    query: query,
+                    page: page,
+                    pageSize: 50,
+                    sortField: sortField,
+                    sortDescending: sortOrder === 'desc',
+                    includeFacets: true
+                };
+                
+                // Add timestamp range if specified
+                if (timestampFrom !== null) {
+                    requestBody.timestampFrom = timestampFrom;
+                }
+                if (timestampTo !== null) {
+                    requestBody.timestampTo = timestampTo;
+                }
+                
+                console.log('Search request:', requestBody);
+                
                 const response = await fetch('/api/search', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        indices: indices,
-                        query: query,
-                        page: page,
-                        pageSize: 50,
-                        sortField: sortField,
-                        sortDescending: sortOrder === 'desc',
-                        includeFacets: true
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 if (!response.ok) {
@@ -1115,8 +1469,126 @@
             }
         });
         
+        // Share Query Modal
+        const shareModal = document.getElementById('shareModal');
+        const shareBtn = document.getElementById('shareBtn');
+        const shareModalClose = document.getElementById('shareModalClose');
+        
+        shareBtn.addEventListener('click', () => {
+            generateShareLinks();
+            shareModal.style.display = 'block';
+        });
+        
+        shareModalClose.addEventListener('click', () => {
+            shareModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === shareModal) {
+                shareModal.style.display = 'none';
+            }
+        });
+        
+        function generateShareLinks() {
+            const indices = document.getElementById('indices').value;
+            const query = document.getElementById('query').value;
+            const sortField = document.getElementById('sortField').value;
+            const sortOrder = document.getElementById('sortOrder').value;
+            
+            // Generate URL
+            const params = new URLSearchParams();
+            params.append('q', query);
+            params.append('indices', indices);
+            if (currentTimeRange.from) params.append('from', currentTimeRange.from);
+            if (currentTimeRange.to) params.append('to', currentTimeRange.to);
+            if (sortField !== 'timestamp') params.append('sort', sortField);
+            if (sortOrder !== 'desc') params.append('order', sortOrder);
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            document.getElementById('shareUrl').textContent = shareUrl;
+            
+            // Generate curl command
+            const apiUrl = `${window.location.origin}/api/search`;
+            const curlBody = {
+                indices: indices.split(',').map(s => s.trim()).filter(s => s),
+                query: query,
+                page: 0,
+                pageSize: 50,
+                sortField: sortField,
+                sortDescending: sortOrder === 'desc',
+                includeFacets: true
+            };
+            
+            const curlCmd = `curl -X POST '${apiUrl}' \\
+  -H 'Content-Type: application/json' \\
+  -d '${JSON.stringify(curlBody, null, 2).replace(/'/g, "'\\''")}' \\
+  | jq`;
+            
+            document.getElementById('shareCurl').textContent = curlCmd;
+        }
+        
+        // Copy to clipboard
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.copy;
+                const text = type === 'url' 
+                    ? document.getElementById('shareUrl').textContent
+                    : document.getElementById('shareCurl').textContent;
+                
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    alert('Failed to copy: ' + err);
+                });
+            });
+        });
+        
+        
+        // Parse URL parameters on load
+        function parseUrlParameters() {
+            const params = new URLSearchParams(window.location.search);
+            
+            if (params.has('q')) {
+                document.getElementById('query').value = params.get('q');
+            }
+            if (params.has('indices')) {
+                document.getElementById('indices').value = params.get('indices');
+            }
+            if (params.has('from')) {
+                const fromVal = params.get('from');
+                timeFrom.value = fromVal;
+                currentTimeRange.from = fromVal;
+            }
+            if (params.has('to')) {
+                const toVal = params.get('to');
+                timeTo.value = toVal;
+                currentTimeRange.to = toVal;
+            }
+            if (currentTimeRange.from || currentTimeRange.to) {
+                const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() : 'Start';
+                const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() : 'End';
+                timeRangeDisplay.textContent = `${fromStr} → ${toStr}`;
+            }
+            if (params.has('sort')) {
+                document.getElementById('sortField').value = params.get('sort');
+            }
+            if (params.has('order')) {
+                document.getElementById('sortOrder').value = params.get('order');
+            }
+            
+            // Auto-search if query present
+            if (params.has('q')) {
+                performSearch(0);
+            }
+        }
+        
         // Initialize
         renderHistory();
+        parseUrlParameters();
         
         // Set random example as placeholder
         window.addEventListener('load', () => {

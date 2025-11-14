@@ -6,6 +6,7 @@ import com.locallogsearch.core.pipe.PipeQueryParser.ParsedQuery;
 import com.locallogsearch.core.pipe.PipeQueryParser.PipeCommandSpec;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -101,6 +102,19 @@ public class SearchService {
         parser.setDefaultOperator(QueryParser.Operator.AND);
         
         Query query = parser.parse(request.getQuery());
+        
+        // Add timestamp range filter if specified
+        if (request.getTimestampFrom() != null || request.getTimestampTo() != null) {
+            long from = request.getTimestampFrom() != null ? request.getTimestampFrom() : 0L;
+            long to = request.getTimestampTo() != null ? request.getTimestampTo() : Long.MAX_VALUE;
+            Query timestampQuery = LongPoint.newRangeQuery("timestamp", from, to);
+            
+            // Combine with main query using BooleanQuery
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(query, BooleanClause.Occur.MUST);
+            builder.add(timestampQuery, BooleanClause.Occur.FILTER);
+            query = builder.build();
+        }
         
         // Get enough results for pagination and faceting
         int maxDocsToFetch = Math.min(10000, reader.numDocs());

@@ -11,6 +11,8 @@ public class SearchRequest {
     private boolean sortDescending;
     private boolean includeFacets;
     private List<String> facetFields;
+    private Long timestampFrom;
+    private Long timestampTo;
     
     public SearchRequest() {
         this.page = 0;
@@ -81,5 +83,21 @@ public class SearchRequest {
     
     public void setFacetFields(List<String> facetFields) {
         this.facetFields = facetFields;
+    }
+    
+    public Long getTimestampFrom() {
+        return timestampFrom;
+    }
+    
+    public void setTimestampFrom(Long timestampFrom) {
+        this.timestampFrom = timestampFrom;
+    }
+    
+    public Long getTimestampTo() {
+        return timestampTo;
+    }
+    
+    public void setTimestampTo(Long timestampTo) {
+        this.timestampTo = timestampTo;
     }
 }
