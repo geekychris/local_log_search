@@ -48,11 +48,17 @@ public abstract class PipeResult {
     public static class TableResult extends PipeResult {
         private final List<String> columns;
         private final List<Map<String, Object>> rows;
+        private final int sourceHits;
         
         public TableResult(List<String> columns, List<Map<String, Object>> rows) {
+            this(columns, rows, 0);
+        }
+        
+        public TableResult(List<String> columns, List<Map<String, Object>> rows, int sourceHits) {
             super(ResultType.TABLE);
             this.columns = columns;
             this.rows = rows;
+            this.sourceHits = sourceHits;
         }
         
         public List<String> getColumns() {
@@ -61,6 +67,10 @@ public abstract class PipeResult {
         
         public List<Map<String, Object>> getRows() {
             return rows;
+        }
+        
+        public int getSourceHits() {
+            return sourceHits;
         }
     }
     
@@ -71,12 +81,18 @@ public abstract class PipeResult {
         private final String chartType; // bar, pie, line
         private final List<String> labels;
         private final Map<String, List<Number>> series;
+        private final int sourceHits;
         
         public ChartResult(String chartType, List<String> labels, Map<String, List<Number>> series) {
+            this(chartType, labels, series, 0);
+        }
+        
+        public ChartResult(String chartType, List<String> labels, Map<String, List<Number>> series, int sourceHits) {
             super(ResultType.CHART);
             this.chartType = chartType;
             this.labels = labels;
             this.series = series;
+            this.sourceHits = sourceHits;
         }
         
         public String getChartType() {
@@ -90,6 +106,10 @@ public abstract class PipeResult {
         public Map<String, List<Number>> getSeries() {
             return series;
         }
+        
+        public int getSourceHits() {
+            return sourceHits;
+        }
     }
     
     /**
@@ -98,11 +118,17 @@ public abstract class PipeResult {
     public static class TimeChartResult extends PipeResult {
         private final List<String> timestamps;
         private final Map<String, List<Number>> series;
+        private final int sourceHits;
         
         public TimeChartResult(List<String> timestamps, Map<String, List<Number>> series) {
+            this(timestamps, series, 0);
+        }
+        
+        public TimeChartResult(List<String> timestamps, Map<String, List<Number>> series, int sourceHits) {
             super(ResultType.TIMECHART);
             this.timestamps = timestamps;
             this.series = series;
+            this.sourceHits = sourceHits;
         }
         
         public List<String> getTimestamps() {
@@ -111,6 +137,10 @@ public abstract class PipeResult {
         
         public Map<String, List<Number>> getSeries() {
             return series;
+        }
+        
+        public int getSourceHits() {
+            return sourceHits;
         }
     }
 }

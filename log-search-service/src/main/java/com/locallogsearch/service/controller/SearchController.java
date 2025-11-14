@@ -43,6 +43,10 @@ public class SearchController {
             request.setSortField(apiRequest.getSortField());
             request.setSortDescending(apiRequest.isSortDescending());
             request.setIncludeFacets(apiRequest.isIncludeFacets());
+            request.setTimestampFrom(apiRequest.getTimestampFrom());
+            request.setTimestampTo(apiRequest.getTimestampTo());
+            
+            log.info("Search request - timestampFrom: {}, timestampTo: {}", apiRequest.getTimestampFrom(), apiRequest.getTimestampTo());
             
             SearchResponse response = searchService.search(request);
             
@@ -66,6 +70,8 @@ public class SearchController {
         private boolean sortDescending = false;
         private boolean includeFacets = true;
         private int maxResults = 50; // For backward compatibility
+        private Long timestampFrom;
+        private Long timestampTo;
         
         public List<String> getIndices() {
             return indices;
@@ -130,6 +136,22 @@ public class SearchController {
         public void setMaxResults(int maxResults) {
             this.maxResults = maxResults;
             this.pageSize = maxResults; // Sync with pageSize
+        }
+        
+        public Long getTimestampFrom() {
+            return timestampFrom;
+        }
+        
+        public void setTimestampFrom(Long timestampFrom) {
+            this.timestampFrom = timestampFrom;
+        }
+        
+        public Long getTimestampTo() {
+            return timestampTo;
+        }
+        
+        public void setTimestampTo(Long timestampTo) {
+            this.timestampTo = timestampTo;
         }
     }
     

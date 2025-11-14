@@ -1304,10 +1304,13 @@
             let timestampTo = null;
             
             if (currentTimeRange.from || currentTimeRange.to) {
-                timestampFrom = currentTimeRange.from ? new Date(currentTimeRange.from).getTime() : null;
-                timestampTo = currentTimeRange.to ? new Date(currentTimeRange.to).getTime() : null;
+                // datetime-local format is in local time, convert to UTC epoch millis
+                // Add 'Z' to treat as UTC since our logs are in UTC
+                timestampFrom = currentTimeRange.from ? new Date(currentTimeRange.from + ':00Z').getTime() : null;
+                timestampTo = currentTimeRange.to ? new Date(currentTimeRange.to + ':00Z').getTime() : null;
                 
                 console.log('Adding time filter - from:', timestampFrom, timestampFrom ? '(' + new Date(timestampFrom).toISOString() + ')' : '', 'to:', timestampTo, timestampTo ? '(' + new Date(timestampTo).toISOString() + ')' : '');
+                console.log('Original time range values - from:', currentTimeRange.from, 'to:', currentTimeRange.to);
             }
             
             // Save search params
@@ -1360,16 +1363,19 @@
                 
                 // Check result type and render accordingly
                 if (data.resultType === 'TABLE') {
-                    messageEl.innerHTML = `<div class="success">Table result</div>`;
-                    document.getElementById('totalHits').textContent = 'Table';
+                    const sourceHits = data.pipeResult.sourceHits || 0;
+                    messageEl.innerHTML = `<div class="success">Table result (${sourceHits} source hits)</div>`;
+                    document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Table';
                     renderTable(data.pipeResult);
                 } else if (data.resultType === 'CHART') {
-                    messageEl.innerHTML = `<div class="success">Chart result</div>`;
-                    document.getElementById('totalHits').textContent = 'Chart';
+                    const sourceHits = data.pipeResult.sourceHits || 0;
+                    messageEl.innerHTML = `<div class="success">Chart result (${sourceHits} source hits)</div>`;
+                    document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Chart';
                     renderChart(data.pipeResult);
                 } else if (data.resultType === 'TIMECHART') {
-                    messageEl.innerHTML = `<div class="success">Time chart result</div>`;
-                    document.getElementById('totalHits').textContent = 'Time Chart';
+                    const sourceHits = data.pipeResult.sourceHits || 0;
+                    messageEl.innerHTML = `<div class="success">Time chart result (${sourceHits} source hits)</div>`;
+                    document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Time Chart';
                     renderTimeChart(data.pipeResult);
                 } else if (data.results && data.results.length > 0) {
                     // Regular log results

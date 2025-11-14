@@ -64,7 +64,7 @@ public class ChartCommand implements PipeCommand {
             }
         }
         
-        return new PipeResult.ChartResult(chartType, labels, series);
+        return new PipeResult.ChartResult(chartType, labels, series, tableResult.getSourceHits());
     }
     
     @Override

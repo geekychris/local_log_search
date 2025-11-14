@@ -107,6 +107,7 @@ public class SearchService {
         if (request.getTimestampFrom() != null || request.getTimestampTo() != null) {
             long from = request.getTimestampFrom() != null ? request.getTimestampFrom() : 0L;
             long to = request.getTimestampTo() != null ? request.getTimestampTo() : Long.MAX_VALUE;
+            log.info("Applying timestamp filter: from={} to={}", from, to);
             Query timestampQuery = LongPoint.newRangeQuery("timestamp", from, to);
             
             // Combine with main query using BooleanQuery
@@ -114,10 +115,13 @@ public class SearchService {
             builder.add(query, BooleanClause.Occur.MUST);
             builder.add(timestampQuery, BooleanClause.Occur.FILTER);
             query = builder.build();
+            log.info("Combined query: {}", query);
         }
         
         // Get enough results for pagination and faceting
-        int maxDocsToFetch = Math.min(10000, reader.numDocs());
+        // For pipe queries, we might need more results
+        int requestedPageSize = request.getPageSize();
+        int maxDocsToFetch = requestedPageSize > 0 ? Math.min(requestedPageSize, reader.numDocs()) : Math.min(10000, reader.numDocs());
         TopDocs topDocs = searcher.search(query, maxDocsToFetch);
         
         List<SearchResult> results = new ArrayList<>();
@@ -254,17 +258,25 @@ public class SearchService {
      * Search with pipe commands
      */
     private SearchResponse searchWithPipes(SearchRequest request, ParsedQuery parsedQuery) throws IOException, ParseException {
+        log.debug("searchWithPipes - timestampFrom: {}, timestampTo: {}", request.getTimestampFrom(), request.getTimestampTo());
+        
         // Execute base search with the parsed base query
         SearchRequest baseRequest = new SearchRequest();
         baseRequest.setIndices(request.getIndices());
         baseRequest.setQuery(parsedQuery.getBaseQuery());
-        baseRequest.setPageSize(10000); // Get all results for pipe processing
+        baseRequest.setPageSize(100000); // Get enough results for pipe processing (increased limit)
         baseRequest.setIncludeFacets(false); // Don't need facets for pipes
+        // Copy timestamp filters from original request
+        baseRequest.setTimestampFrom(request.getTimestampFrom());
+        baseRequest.setTimestampTo(request.getTimestampTo());
+        log.debug("baseRequest - timestampFrom: {}, timestampTo: {}", baseRequest.getTimestampFrom(), baseRequest.getTimestampTo());
         
         List<SearchResult> allResults = new ArrayList<>();
+        int totalHitsAcrossIndices = 0;
         for (String indexName : request.getIndices()) {
             SearchResponse indexResponse = searchIndex(indexName, baseRequest);
             allResults.addAll(indexResponse.getResults());
+            totalHitsAcrossIndices += indexResponse.getTotalHits();
         }
         
         // Apply pipe commands in sequence

@@ -44,7 +44,7 @@ public class StatsCommand implements PipeCommand {
             row.put(agg, value);
         }
         
-        return new PipeResult.TableResult(columns, Collections.singletonList(row));
+        return new PipeResult.TableResult(columns, Collections.singletonList(row), input.size());
     }
     
     private PipeResult executeGrouped(List<SearchResult> input) {
@@ -93,7 +93,7 @@ public class StatsCommand implements PipeCommand {
             });
         }
         
-        return new PipeResult.TableResult(columns, rows);
+        return new PipeResult.TableResult(columns, rows, input.size());
     }
     
     private String getGroupKey(SearchResult result) {

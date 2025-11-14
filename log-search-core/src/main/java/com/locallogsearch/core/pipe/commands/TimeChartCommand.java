@@ -45,7 +45,7 @@ public class TimeChartCommand implements PipeCommand {
         
         if (minTime == Long.MAX_VALUE) {
             // No timestamps found
-            return new PipeResult.TimeChartResult(new ArrayList<>(), new LinkedHashMap<>());
+            return new PipeResult.TimeChartResult(new ArrayList<>(), new LinkedHashMap<>(), input.size());
         }
         
         // Create time buckets - align to span boundaries
@@ -95,7 +95,7 @@ public class TimeChartCommand implements PipeCommand {
             series.put(entry.getKey(), counts);
         }
         
-        return new PipeResult.TimeChartResult(timestamps, series);
+        return new PipeResult.TimeChartResult(timestamps, series, input.size());
     }
     
     private long parseSpan(String span) {

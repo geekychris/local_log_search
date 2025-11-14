@@ -334,7 +334,12 @@
                 <div class="form-group">
                     <label for="parserConfig">Parser Configuration (optional)</label>
                     <input type="text" id="parserConfig" placeholder='{"pattern": "...", "field.1": "timestamp"}' oninput="updatePreview()">
-                    <div class="form-hint">JSON configuration for regex/grok parsers (leave empty for key-value)</div>
+                    <div class="form-hint">
+                        JSON configuration for regex/grok parsers (leave empty for key-value)
+                        <br>
+                        <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; font-size: 0.875rem;">📖 Grok Patterns Reference</a> |
+                        <a href="#" onclick="showGrokHelp(); return false;" style="color: #3498db; font-size: 0.875rem;">💡 Quick Examples</a>
+                    </div>
                 </div>
                 
                 <div class="button-group">
@@ -360,6 +365,65 @@
             <div id="indicesLoading" class="loading">Loading indices...</div>
             <div id="indicesMessage"></div>
             <div id="indicesList" class="sources-list"></div>
+        </div>
+    </div>
+
+    <!-- Grok Help Modal -->
+    <div id="grokHelpModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeGrokHelp()">&times;</span>
+            <h2>Grok Pattern Quick Reference</h2>
+            
+            <h3 style="margin-top: 1rem;">Common Patterns</h3>
+            
+            <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                <strong>Apache/Nginx Access Logs</strong>
+                <pre style="margin: 0.5rem 0; background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto;">{"pattern": "%{COMBINEDAPACHELOG}"}</pre>
+                <div style="font-size: 0.875rem; color: #666;">Example: 127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "GET /page.html HTTP/1.0" 200 2326</div>
+            </div>
+            
+            <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                <strong>Syslog Format</strong>
+                <pre style="margin: 0.5rem 0; background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto;">{"pattern": "%{SYSLOGBASE} %{GREEDYDATA:message}"}</pre>
+                <div style="font-size: 0.875rem; color: #666;">Example: Mar 16 00:01:25 hostname sshd[1234]: Failed password for user</div>
+            </div>
+            
+            <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                <strong>Timestamp + Level + Message</strong>
+                <pre style="margin: 0.5rem 0; background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto;">{"pattern": "%{TIMESTAMP_ISO8601:timestamp} %{LOGLEVEL:level} %{GREEDYDATA:message}"}</pre>
+                <div style="font-size: 0.875rem; color: #666;">Example: 2024-01-15T10:30:00Z INFO Application started successfully</div>
+            </div>
+            
+            <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                <strong>Custom Key=Value Format</strong>
+                <pre style="margin: 0.5rem 0; background: white; padding: 0.5rem; border-radius: 4px; overflow-x: auto;">{"pattern": "%{TIMESTAMP_ISO8601:timestamp} user=%{USERNAME:user} ip=%{IP:ip} action=%{WORD:action}"}</pre>
+                <div style="font-size: 0.875rem; color: #666;">Example: 2024-01-15T10:30:00Z user=john.doe ip=192.168.1.50 action=login</div>
+            </div>
+            
+            <h3 style="margin-top: 1.5rem;">Common Pattern Components</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.875rem;">
+                <tr style="background: #f8f9fa;">
+                    <th style="padding: 0.5rem; text-align: left; border: 1px solid #ddd;">Pattern</th>
+                    <th style="padding: 0.5rem; text-align: left; border: 1px solid #ddd;">Matches</th>
+                </tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{TIMESTAMP_ISO8601}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">ISO timestamps</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{LOGLEVEL}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">DEBUG, INFO, WARN, ERROR</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{IP}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">IP addresses</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{USERNAME}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">Usernames</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{NUMBER}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">Any number</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{WORD}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">Single word</td></tr>
+                <tr><td style="padding: 0.5rem; border: 1px solid #ddd;"><code>%{GREEDYDATA}</code></td><td style="padding: 0.5rem; border: 1px solid #ddd;">Everything to end of line</td></tr>
+            </table>
+            
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #2196f3;">
+                <strong>💡 Tip:</strong> Use the "Load Preview" feature to test your Grok patterns with real log samples!
+            </div>
+            
+            <div style="margin-top: 1rem; text-align: center;">
+                <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; text-decoration: none;">
+                    📖 View Complete Grok Patterns Reference →
+                </a>
+            </div>
         </div>
     </div>
 
@@ -877,6 +941,14 @@
         
         function closeEditModal() {
             document.getElementById('editModal').style.display = 'none';
+        }
+        
+        function showGrokHelp() {
+            document.getElementById('grokHelpModal').style.display = 'block';
+        }
+        
+        function closeGrokHelp() {
+            document.getElementById('grokHelpModal').style.display = 'none';
         }
         
         // Edit form handler
