@@ -7,6 +7,7 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -172,6 +173,18 @@
             background: #1976d2;
             color: white;
             transform: translateY(-1px);
+        }
+        .field-tag-inline {
+            color: #1976d2;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0 2px;
+            border-radius: 2px;
+            transition: all 0.2s;
+        }
+        .field-tag-inline:hover {
+            background: #e3f2fd;
+            text-decoration: underline;
         }
         .error {
             background: #ffebee;
@@ -522,7 +535,17 @@
                     <div class="card" id="resultsCard" style="display:none;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h2 style="margin: 0;">Results (<span id="totalHits">0</span> hits)</h2>
-                            <button class="share" id="shareBtn">📋 Share Query</button>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="secondary" id="exportBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">📥 Export</button>
+                                <button class="share" id="shareBtn">📋 Share Query</button>
+                            </div>
+                        </div>
+                        <div id="exportOptions" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px;">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button id="exportCsv" style="background: #27ae60; font-size: 0.875rem; padding: 0.5rem 1rem;">CSV</button>
+                                <button id="exportJson" style="background: #2980b9; font-size: 0.875rem; padding: 0.5rem 1rem;">JSON</button>
+                                <button id="exportPdf" style="background: #c0392b; font-size: 0.875rem; padding: 0.5rem 1rem;" disabled>PDF (Charts Only)</button>
+                            </div>
                         </div>
                         <div class="sort-controls">
                             <label for="sortField">Sort by:</label>
@@ -827,7 +850,11 @@
             const entry = {
                 query,
                 indices,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                timeRange: {
+                    from: currentTimeRange.from,
+                    to: currentTimeRange.to
+                }
             };
             
             searchHistory.unshift(entry);
@@ -847,18 +874,65 @@
                 return;
             }
             
-            historyList.innerHTML = searchHistory.map(entry => `
-                <div class="history-item" data-query="${entry.query}" data-indices="${entry.indices}">
-                    <div class="history-query">${entry.query}</div>
-                    <div class="history-time">${new Date(entry.timestamp).toLocaleString()}</div>
-                </div>
-            `).join('');
+            historyList.innerHTML = searchHistory.map((entry, index) => {
+                let timeRangeInfo = '';
+                if (entry.timeRange && (entry.timeRange.from || entry.timeRange.to)) {
+                    const fromStr = entry.timeRange.from ? new Date(entry.timeRange.from).toLocaleString() : 'Start';
+                    const toStr = entry.timeRange.to ? new Date(entry.timeRange.to).toLocaleString() : 'End';
+                    timeRangeInfo = `<div style="font-size: 0.7rem; color: #3498db; margin-top: 0.25rem;">🕐 ${fromStr} → ${toStr}</div>`;
+                }
+                
+                return `
+                    <div class="history-item" data-index="${index}">
+                        <div class="history-query">${entry.query}</div>
+                        <div class="history-time">${new Date(entry.timestamp).toLocaleString()}</div>
+                        ${timeRangeInfo}
+                    </div>
+                `;
+            }).join('');
             
             // Add click handlers
             document.querySelectorAll('.history-item').forEach(item => {
                 item.addEventListener('click', () => {
-                    document.getElementById('query').value = item.dataset.query;
-                    document.getElementById('indices').value = item.dataset.indices;
+                    const index = parseInt(item.dataset.index);
+                    const entry = searchHistory[index];
+                    
+                    document.getElementById('query').value = entry.query;
+                    document.getElementById('indices').value = entry.indices;
+                    
+                    // Restore time range if present
+                    if (entry.timeRange) {
+                        if (entry.timeRange.from) {
+                            timeFrom.value = entry.timeRange.from;
+                            currentTimeRange.from = entry.timeRange.from;
+                        } else {
+                            timeFrom.value = '';
+                            currentTimeRange.from = null;
+                        }
+                        
+                        if (entry.timeRange.to) {
+                            timeTo.value = entry.timeRange.to;
+                            currentTimeRange.to = entry.timeRange.to;
+                        } else {
+                            timeTo.value = '';
+                            currentTimeRange.to = null;
+                        }
+                        
+                        // Update display
+                        if (currentTimeRange.from || currentTimeRange.to) {
+                            const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() : 'Start';
+                            const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() : 'End';
+                            timeRangeDisplay.textContent = `${fromStr} → ${toStr}`;
+                        } else {
+                            timeRangeDisplay.textContent = 'All time';
+                        }
+                    } else {
+                        // Clear time range if not present in history entry
+                        timeFrom.value = '';
+                        timeTo.value = '';
+                        currentTimeRange = { from: null, to: null };
+                        timeRangeDisplay.textContent = 'All time';
+                    }
                 });
             });
         }
@@ -1367,16 +1441,19 @@
                     messageEl.innerHTML = `<div class="success">Table result (${sourceHits} source hits)</div>`;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Table';
                     renderTable(data.pipeResult);
+                    setExportData(data.pipeResult, 'TABLE');
                 } else if (data.resultType === 'CHART') {
                     const sourceHits = data.pipeResult.sourceHits || 0;
                     messageEl.innerHTML = `<div class="success">Chart result (${sourceHits} source hits)</div>`;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Chart';
                     renderChart(data.pipeResult);
+                    setExportData(data.pipeResult, 'CHART');
                 } else if (data.resultType === 'TIMECHART') {
                     const sourceHits = data.pipeResult.sourceHits || 0;
                     messageEl.innerHTML = `<div class="success">Time chart result (${sourceHits} source hits)</div>`;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Time Chart';
                     renderTimeChart(data.pipeResult);
+                    setExportData(data.pipeResult, 'TIMECHART');
                 } else if (data.results && data.results.length > 0) {
                     // Regular log results
                     messageEl.innerHTML = `<div class="success">Found ${data.totalHits} results</div>`;
@@ -1395,13 +1472,23 @@
                         
                         const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : 'N/A';
                         
-                        let fieldsHtml = '';
+                        // Parse raw text and make key=value pairs clickable
+                        let processedText = result.rawText || '';
                         if (result.fields && Object.keys(result.fields).length > 0) {
-                            fieldsHtml = '<div class="result-fields">';
-                            for (const [key, value] of Object.entries(result.fields)) {
-                                fieldsHtml += `<span class="field-tag" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">${key}=${value}</span>`;
+                            // Sort by length descending to avoid partial matches
+                            const sortedFields = Object.entries(result.fields).sort((a, b) => b[0].length - a[0].length);
+                            
+                            for (const [key, value] of sortedFields) {
+                                // Escape special regex characters in key and value
+                                const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                const keyEscaped = escapeRegex(key);
+                                const valueEscaped = escapeRegex(value);
+                                
+                                // Match key=value or key:value patterns
+                                const regex = new RegExp(`(${keyEscaped}[:=])(${valueEscaped})`, 'g');
+                                processedText = processedText.replace(regex, 
+                                    `$1<span class="field-tag-inline" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">$2</span>`);
                             }
-                            fieldsHtml += '</div>';
                         }
                         
                         resultDiv.innerHTML = `
@@ -1410,16 +1497,16 @@
                                 <strong>Index:</strong> ${result.indexName} | 
                                 <strong>Score:</strong> ${result.score.toFixed(2)}
                             </div>
-                            <div class="result-text">${result.rawText}</div>
-                            ${fieldsHtml}
+                            <div class="result-text">${processedText}</div>
                         `;
                         
                         resultsEl.appendChild(resultDiv);
                     });
                     
-                    // Add click handlers to field tags
-                    document.querySelectorAll('.field-tag').forEach(tag => {
-                        tag.addEventListener('click', () => {
+                    // Add click handlers to inline field tags
+                    document.querySelectorAll('.field-tag-inline').forEach(tag => {
+                        tag.addEventListener('click', (e) => {
+                            e.preventDefault();
                             addConstraint(tag.dataset.field, tag.dataset.value);
                         });
                     });
@@ -1434,6 +1521,9 @@
                     } else {
                         document.getElementById('pagination').style.display = 'none';
                     }
+                    
+                    // Set export data for logs
+                    setExportData(data.results, 'LOGS');
                 } else {
                     messageEl.innerHTML = '<div class="success">No results found</div>';
                 }
@@ -1525,6 +1615,14 @@
                 includeFacets: true
             };
             
+            // Add timestamp filters if present
+            if (currentTimeRange.from) {
+                curlBody.timestampFrom = new Date(currentTimeRange.from + ':00Z').getTime();
+            }
+            if (currentTimeRange.to) {
+                curlBody.timestampTo = new Date(currentTimeRange.to + ':00Z').getTime();
+            }
+            
             const curlCmd = `curl -X POST '${apiUrl}' \\
   -H 'Content-Type: application/json' \\
   -d '${JSON.stringify(curlBody, null, 2).replace(/'/g, "'\\''")}' \\
@@ -1553,6 +1651,123 @@
             });
         });
         
+        
+        // Export functionality
+        let currentExportData = null;
+        let currentResultType = null;
+        
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            const exportOptions = document.getElementById('exportOptions');
+            exportOptions.style.display = exportOptions.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        function setExportData(data, resultType) {
+            currentExportData = data;
+            currentResultType = resultType;
+            
+            // Enable/disable PDF button based on result type
+            const pdfBtn = document.getElementById('exportPdf');
+            if (resultType === 'CHART' || resultType === 'TIMECHART') {
+                pdfBtn.disabled = false;
+                pdfBtn.style.opacity = '1';
+                pdfBtn.style.cursor = 'pointer';
+            } else {
+                pdfBtn.disabled = true;
+                pdfBtn.style.opacity = '0.5';
+                pdfBtn.style.cursor = 'not-allowed';
+            }
+        }
+        
+        document.getElementById('exportCsv').addEventListener('click', () => exportToCsv());
+        document.getElementById('exportJson').addEventListener('click', () => exportToJson());
+        document.getElementById('exportPdf').addEventListener('click', () => exportToPdf());
+        
+        function exportToCsv() {
+            if (!currentExportData) return;
+            
+            let csv = '';
+            
+            if (currentResultType === 'TABLE') {
+                // Export table results
+                const columns = currentExportData.columns;
+                csv = columns.join(',') + '\n';
+                currentExportData.rows.forEach(row => {
+                    const values = columns.map(col => {
+                        const val = row[col];
+                        return typeof val === 'string' && val.includes(',') ? `"${val}"` : val;
+                    });
+                    csv += values.join(',') + '\n';
+                });
+            } else if (currentResultType === 'LOGS') {
+                // Export log results
+                csv = 'timestamp,index,score,rawText,fields\n';
+                currentExportData.forEach(result => {
+                    const timestamp = result.timestamp || '';
+                    const index = result.indexName || '';
+                    const score = result.score || '';
+                    const rawText = (result.rawText || '').replace(/"/g, '""');
+                    const fields = JSON.stringify(result.fields || {}).replace(/"/g, '""');
+                    csv += `"${timestamp}","${index}",${score},"${rawText}","${fields}"\n`;
+                });
+            }
+            
+            downloadFile(csv, 'search-results.csv', 'text/csv');
+        }
+        
+        function exportToJson() {
+            if (!currentExportData) return;
+            
+            const jsonData = {
+                query: document.getElementById('query').value,
+                indices: document.getElementById('indices').value,
+                timestamp: new Date().toISOString(),
+                resultType: currentResultType,
+                data: currentExportData
+            };
+            
+            downloadFile(JSON.stringify(jsonData, null, 2), 'search-results.json', 'application/json');
+        }
+        
+        function exportToPdf() {
+            if (!currentExportData || (currentResultType !== 'CHART' && currentResultType !== 'TIMECHART')) return;
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add header
+            doc.setFontSize(16);
+            doc.text('Log Search Results', 15, 15);
+            
+            doc.setFontSize(10);
+            doc.text(`Query: ${document.getElementById('query').value}`, 15, 25);
+            doc.text(`Indices: ${document.getElementById('indices').value}`, 15, 32);
+            doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 39);
+            
+            if (currentExportData.sourceHits) {
+                doc.text(`Source Hits: ${currentExportData.sourceHits}`, 15, 46);
+            }
+            
+            // Add chart as image
+            const canvas = document.getElementById('resultChart');
+            if (canvas) {
+                const imgData = canvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', 15, 55, 180, 100);
+            }
+            
+            doc.save('search-results.pdf');
+        }
+        
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
         
         // Parse URL parameters on load
         function parseUrlParameters() {
