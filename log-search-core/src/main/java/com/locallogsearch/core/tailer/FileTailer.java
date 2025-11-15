@@ -46,13 +46,13 @@ public class FileTailer implements Runnable {
             log.info("Restored tailer for {} from checkpoint at position {} with fileKey {}", 
                 config.getFilePath(), filePointer, currentFileKey);
         } else {
-            // Start from end of file if it exists
+            // Start from beginning of file to index all content
             Path path = Paths.get(config.getFilePath());
             if (Files.exists(path)) {
                 try {
-                    this.filePointer = Files.size(path);
+                    this.filePointer = 0; // Start from beginning
                     this.currentFileKey = getFileKey(path);
-                    log.info("Starting tailer for {} at position {} with fileKey {}", 
+                    log.info("Starting tailer for {} at position {} (beginning) with fileKey {}", 
                         config.getFilePath(), filePointer, currentFileKey);
                 } catch (IOException e) {
                     log.warn("Could not determine file info for {}", config.getFilePath(), e);

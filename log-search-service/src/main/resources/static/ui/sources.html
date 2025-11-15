@@ -296,14 +296,15 @@
             <h2>Add New Log Source</h2>
             <form id="addSourceForm">
                 <div class="form-group">
-                    <label for="filePath">File Path *</label>
+                    <label for="filePath">File Path (Absolute) *</label>
                     <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="filePath" placeholder="/path/to/logfile.log" required style="flex: 1;">
-                        <input type="file" id="fileInput" style="display: none;" accept="*">
-                        <button type="button" class="secondary" onclick="document.getElementById('fileInput').click()">Browse</button>
-                        <button type="button" class="secondary" id="loadPreview">Load Preview</button>
+                        <input type="text" id="filePath" placeholder="/Users/yourname/logs/app.log" required style="flex: 1;">
+                        <button type="button" class="secondary" onclick="showFileBrowser()">Browse...</button>
+                        <button type="button" class="secondary" id="loadPreview">Preview File</button>
                     </div>
-                    <div class="form-hint">Enter the full absolute path (e.g., /Users/yourname/logs/app.log). Browse button may not show full paths in web apps - type the path manually if needed.</div>
+                    <div class="form-hint">
+                        Full absolute path required (starting with /). Click Browse to select a file from the server.
+                    </div>
                 </div>
                 
                 <!-- Live Preview Section -->
@@ -567,57 +568,48 @@
         </div>
     </div>
 
+    <!-- File Browser Modal -->
+    <div id="fileBrowserModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <span class="modal-close" onclick="closeFileBrowser()">&times;</span>
+            <h2>Browse for Log File</h2>
+            
+            <div style="margin-bottom: 1rem;">
+                <label style="font-weight: 500;">Current Path:</label>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <input type="text" id="browserCurrentPath" readonly style="flex: 1; background: #f5f5f5;">
+                    <button type="button" class="secondary" onclick="refreshFileBrowser()">Refresh</button>
+                </div>
+            </div>
+            
+            <div id="browserMessage"></div>
+            
+            <div id="fileBrowserContent" style="min-height: 400px; max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white;">
+                <div style="padding: 2rem; text-align: center; color: #666;">Loading...</div>
+            </div>
+            
+            <div style="margin-top: 1rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-size: 0.875rem;">
+                <strong>Selected:</strong> <span id="browserSelectedPath" style="font-family: monospace; color: #2c3e50;">None</span>
+            </div>
+            
+            <div class="button-group" style="margin-top: 1rem;">
+                <button type="button" onclick="selectBrowserFile()">Select File</button>
+                <button type="button" class="secondary" onclick="closeFileBrowser()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State for preview
         let allLoadedLines = [];
         let previewUpdateTimeout = null;
+        let currentBrowserPath = '';
+        let selectedFilePath = '';
         
         // Load existing sources and indices on page load
         window.addEventListener('load', () => {
             loadSources();
             loadIndices();
-        });
-        
-        // File input handler - note: browser file API has security restrictions
-        // and cannot access full file paths. Users should type the full path manually.
-        document.getElementById('fileInput').addEventListener('change', async (e) => {
-            if (e.target.files.length > 0) {
-                const file = e.target.files[0];
-                // Browsers don't expose full paths for security reasons
-                // Show a helpful message and the filename only
-                const fileName = file.name;
-                document.getElementById('filePath').value = fileName;
-                
-                // Try to read a sample to help user
-                try {
-                    const reader = new FileReader();
-                    reader.onload = function(evt) {
-                        const text = evt.target.result;
-                        const lines = text.split('\n').filter(l => l.trim()).slice(0, 100);
-                        allLoadedLines = lines;
-                        
-                        if (lines.length > 0) {
-                            // Create line selector
-                            const lineSelectorHtml = lines.map((line, index) => `
-                                <div class="line-item">
-                                    <input type="checkbox" id="line-${index}" value="${index}" onchange="updatePreview()" ${index < 5 ? 'checked' : ''}>
-                                    <span class="line-number">${index + 1}</span>
-                                    <label for="line-${index}" class="line-text">${escapeHtml(line)}</label>
-                                </div>
-                            `).join('');
-                            
-                            document.getElementById('lineSelector').innerHTML = lineSelectorHtml;
-                            document.getElementById('previewSection').style.display = 'block';
-                            updatePreview();
-                            
-                            showMessage('addMessage', `Loaded preview from file. Please enter the FULL PATH manually (e.g., /Users/yourname/logs/${fileName})`, 'error');
-                        }
-                    };
-                    reader.readAsText(file.slice(0, 100000)); // Read first 100KB
-                } catch (error) {
-                    console.error('Error reading file:', error);
-                }
-            }
         });
         
         // Load preview button handler
@@ -802,6 +794,12 @@
             const indexName = document.getElementById('indexName').value.trim();
             const parserType = document.getElementById('parserType').value;
             const parserConfigStr = document.getElementById('parserConfig').value.trim();
+            
+            // Validate absolute path
+            if (!filePath.startsWith('/')) {
+                showMessage('addMessage', 'File path must be absolute (starting with /). Example: /Users/yourname/logs/app.log', 'error');
+                return;
+            }
             
             let parserConfig = null;
             if (parserConfigStr) {
@@ -1466,6 +1464,109 @@
             } catch (error) {
                 showMessage('truncationMessage', `Error: ${error.message}`, 'error');
             }
+        }
+        
+        // ===== File Browser Functions =====
+        
+        async function showFileBrowser() {
+            selectedFilePath = '';
+            document.getElementById('browserSelectedPath').textContent = 'None';
+            document.getElementById('fileBrowserModal').style.display = 'block';
+            
+            // Start at user home
+            await browseDirectory('');
+        }
+        
+        function closeFileBrowser() {
+            document.getElementById('fileBrowserModal').style.display = 'none';
+        }
+        
+        async function browseDirectory(path) {
+            try {
+                const url = path ? `/api/files/browse?path=${encodeURIComponent(path)}` : '/api/files/browse';
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to browse directory');
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showBrowserMessage(data.error, 'error');
+                    return;
+                }
+                
+                currentBrowserPath = data.currentPath;
+                document.getElementById('browserCurrentPath').value = currentBrowserPath;
+                
+                renderFileList(data.entries);
+                
+            } catch (error) {
+                showBrowserMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function renderFileList(entries) {
+            const content = document.getElementById('fileBrowserContent');
+            
+            if (entries.length === 0) {
+                content.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">Empty directory</div>';
+                return;
+            }
+            
+            let html = '<table style="width: 100%; border-collapse: collapse;">';
+            
+            for (const entry of entries) {
+                const icon = entry.isDirectory ? '📁' : (entry.isLogFile ? '📄' : '📃');
+                const nameStyle = entry.isDirectory ? 'font-weight: 500; color: #2c3e50;' : 'color: #555;';
+                const clickable = entry.isDirectory || entry.isParent;
+                const cursor = clickable ? 'pointer' : 'default';
+                
+                html += `
+                    <tr style="border-bottom: 1px solid #eee; cursor: ${cursor};" 
+                        ${clickable ? `onclick="browseDirectory('${entry.path.replace(/'/g, "\\'")}')">` : `onclick="selectFile('${entry.path.replace(/'/g, "\\'")}', '${entry.name.replace(/'/g, "\\'")}')">`}
+                        <td style="padding: 0.75rem; width: 40px; text-align: center;">${icon}</td>
+                        <td style="padding: 0.75rem; ${nameStyle}">${entry.name}</td>
+                        <td style="padding: 0.75rem; text-align: right; color: #999; font-size: 0.875rem; width: 100px;">
+                            ${entry.sizeFormatted || ''}
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</table>';
+            content.innerHTML = html;
+        }
+        
+        function selectFile(path, name) {
+            if (name === '..') return; // Don't select parent dir
+            selectedFilePath = path;
+            document.getElementById('browserSelectedPath').textContent = path;
+        }
+        
+        function selectBrowserFile() {
+            if (!selectedFilePath) {
+                showBrowserMessage('Please select a file', 'error');
+                return;
+            }
+            
+            document.getElementById('filePath').value = selectedFilePath;
+            closeFileBrowser();
+            showMessage('addMessage', `Selected: ${selectedFilePath}`, 'success');
+        }
+        
+        function refreshFileBrowser() {
+            browseDirectory(currentBrowserPath);
+        }
+        
+        function showBrowserMessage(message, type) {
+            const el = document.getElementById('browserMessage');
+            el.innerHTML = `<div class="message ${type}" style="margin-bottom: 1rem;">${message}</div>`;
+            
+            setTimeout(() => {
+                el.innerHTML = '';
+            }, 3000);
         }
     </script>
 </body>
