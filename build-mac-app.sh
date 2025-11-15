@@ -134,14 +134,20 @@ cat > "${CONTENTS_DIR}/Info.plist" << PLIST_EOF
 </plist>
 PLIST_EOF
 
-# Step 6: Create a simple icon (you can replace this with a proper .icns file)
+# Step 6: Copy the app icon
 echo ""
-echo "🎨 Creating placeholder icon..."
-# Create a simple text file as placeholder - users can replace with proper .icns
-cat > "${RESOURCES_DIR}/AppIcon.icns" << ICON_EOF
+echo "🎨 Copying app icon..."
+if [ -f "AppIcon.icns" ]; then
+    cp "AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+    echo "✅ Custom icon copied"
+else
+    echo "⚠️  Warning: AppIcon.icns not found. Run ./generate-icon.sh to create it."
+    # Create a placeholder
+    cat > "${RESOURCES_DIR}/AppIcon.icns" << ICON_EOF
 # Replace this file with a proper .icns icon file
-# You can create one using Icon Composer or online tools
+# Run ./generate-icon.sh to create the magnifying glass icon
 ICON_EOF
+fi
 
 # Step 7: Create helper scripts in Resources
 echo ""
