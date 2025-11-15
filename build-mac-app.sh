@@ -128,6 +128,8 @@ cat > "${CONTENTS_DIR}/Info.plist" << PLIST_EOF
     <false/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2025. All rights reserved.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>LocalLogSearch needs access to open your browser.</string>
 </dict>
 </plist>
 PLIST_EOF
@@ -178,6 +180,12 @@ fi
 LOGS_EOF
 chmod +x "${RESOURCES_DIR}/view-logs.sh"
 
+# Copy add-log-source helper if it exists
+if [ -f "add-log-source.sh" ]; then
+    cp "add-log-source.sh" "${RESOURCES_DIR}/add-log-source.sh"
+    chmod +x "${RESOURCES_DIR}/add-log-source.sh"
+fi
+
 # Step 8: Create README for the app bundle
 cat > "${RESOURCES_DIR}/README.txt" << 'README_EOF'
 LocalLogSearch - Mac Application
@@ -198,6 +206,18 @@ USAGE:
 - Close the browser - the service keeps running in the background
 - To stop the service, run: ~/.local_log_search/stop-service.sh
 
+IMPORTANT - ADDING LOG FILES:
+When adding log sources in the web UI, you MUST use full absolute paths:
+  ✅ Correct: /Users/yourname/logs/application.log
+  ❌ Wrong: ~/logs/application.log
+  ❌ Wrong: logs/application.log
+
+The Browse button shows file preview but cannot get full paths due to 
+browser security. Type the full path manually or use Terminal to find it:
+  echo /path/to/your/logfile.log
+
+See MAC_APP_GUIDE.md for detailed file access instructions.
+
 DATA LOCATIONS:
 - Indices: ~/.local_log_search/indices/
 - Logs: ~/.local_log_search/logs/app.log
@@ -206,19 +226,37 @@ DATA LOCATIONS:
 HELPER SCRIPTS:
 The following scripts are included in the app bundle:
 - Contents/Resources/stop-service.sh - Stop the service
-- Contents/Resources/view-logs.sh - View application logs
+- Contents/Resources/view-logs.sh - View application logs  
+- Contents/Resources/add-log-source.sh - Interactive helper to add log sources
 
 You can create aliases for these scripts:
   alias llsearch-stop='~/Applications/LocalLogSearch.app/Contents/Resources/stop-service.sh'
   alias llsearch-logs='~/Applications/LocalLogSearch.app/Contents/Resources/view-logs.sh'
+  alias llsearch-add='~/Applications/LocalLogSearch.app/Contents/Resources/add-log-source.sh'
+
+To easily add log sources from Terminal:
+  ~/Applications/LocalLogSearch.app/Contents/Resources/add-log-source.sh
+  (This script handles path resolution and API calls for you)
 
 TROUBLESHOOTING:
 - Check logs: ~/.local_log_search/logs/app.log
 - If port 8080 is in use, stop other services or modify the configuration
 - Ensure Java 21+ is installed: java -version
+- For file access issues, see MAC_APP_GUIDE.md
 
-For more information, see the project README.md
+For more information, see the project README.md and MAC_APP_GUIDE.md
 README_EOF
+
+# Copy the Mac App Guide and Quick Reference
+if [ -f "MAC_APP_GUIDE.md" ]; then
+    cp "MAC_APP_GUIDE.md" "${RESOURCES_DIR}/MAC_APP_GUIDE.md"
+fi
+if [ -f "QUICK_REFERENCE.md" ]; then
+    cp "QUICK_REFERENCE.md" "${RESOURCES_DIR}/QUICK_REFERENCE.md"
+fi
+if [ -f "README.md" ]; then
+    cp "README.md" "${RESOURCES_DIR}/README.md"
+fi
 
 # Step 9: Create a DMG installer (optional - requires hdiutil)
 echo ""
@@ -244,6 +282,26 @@ rm -rf "${DMG_TEMP_DIR}"
 echo ""
 echo "✅ Build complete!"
 echo ""
+
+# Optional: Code signing
+echo "=========================================="
+echo "Code Signing (Optional)"
+echo "=========================================="
+echo ""
+echo "Sign the app to avoid security warnings on macOS."
+read -p "Sign the app now? [y/N]: " SIGN_APP
+
+if [[ "$SIGN_APP" =~ ^[Yy]$ ]]; then
+    if [ -f "sign-app.sh" ]; then
+        ./sign-app.sh "${APP_DIR}" "${DMG_NAME}"
+    else
+        echo "❌ sign-app.sh not found"
+    fi
+else
+    echo "Skipping code signing. Run ./sign-app.sh later to sign."
+fi
+
+echo ""
 echo "=========================================="
 echo "Output files:"
 echo "  Application: ${APP_DIR}"
@@ -258,7 +316,30 @@ echo ""
 echo "Or test directly:"
 echo "  open ${APP_DIR}"
 echo ""
+echo "=========================================="
+echo "IMPORTANT: File Access in Mac App"
+echo "=========================================="
+echo ""
+echo "When adding log sources, you MUST use full absolute paths:"
+echo "  ✅ Correct: /Users/yourname/logs/app.log"
+echo "  ❌ Wrong:   ~/logs/app.log"
+echo ""
+echo "Two ways to add log sources:"
+echo ""
+echo "1. Use the helper script (easiest):"
+echo "   ${RESOURCES_DIR}/add-log-source.sh"
+echo ""
+echo "2. Type full path in web UI:"
+echo "   - Get path: drag file to Terminal after 'echo '"
+echo "   - Paste into File Path field"
+echo "   - Browse button shows preview but not full path"
+echo ""
 echo "Helper commands:"
+echo "  Add source:   ${RESOURCES_DIR}/add-log-source.sh"
 echo "  Stop service: ${RESOURCES_DIR}/stop-service.sh"
 echo "  View logs:    ${RESOURCES_DIR}/view-logs.sh"
+echo ""
+echo "Documentation:"
+echo "  Quick start:  ${RESOURCES_DIR}/QUICK_REFERENCE.md"
+echo "  Full guide:   ${RESOURCES_DIR}/MAC_APP_GUIDE.md"
 echo ""

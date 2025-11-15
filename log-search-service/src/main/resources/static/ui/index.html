@@ -583,8 +583,17 @@
                         <h2>Search Logs</h2>
                         <form id="searchForm">
                             <div class="form-group">
-                                <label for="indices">Indices (comma-separated)</label>
-                                <input type="text" id="indices" placeholder="app-logs, access-logs" value="app-logs">
+                                <label for="indices">Indices</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                                    <div style="flex: 1;">
+                                        <select id="indicesSelect" multiple size="4" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+                                            <option value="">Loading indices...</option>
+                                        </select>
+                                        <div style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Hold Ctrl/Cmd to select multiple</div>
+                                    </div>
+                                    <button type="button" id="refreshIndicesBtn" class="secondary" style="padding: 0.5rem; white-space: nowrap;">🔄 Refresh</button>
+                                </div>
+                                <input type="text" id="indices" placeholder="app-logs, access-logs" value="app-logs" style="display: none;">
                             </div>
                             <div class="form-group">
                                 <label for="query">Query</label>
@@ -898,6 +907,79 @@
         // State management
         let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
         let facetBuckets = {}; // field -> {ranges: [...]}
+        let availableIndices = [];
+        
+        // Load available indices
+        async function loadIndices() {
+            try {
+                const response = await fetch('/api/indices');
+                if (response.ok) {
+                    availableIndices = await response.json();
+                    renderIndicesSelect();
+                } else {
+                    console.error('Failed to load indices');
+                    document.getElementById('indicesSelect').innerHTML = '<option value="">Error loading indices</option>';
+                }
+            } catch (error) {
+                console.error('Error loading indices:', error);
+                document.getElementById('indicesSelect').innerHTML = '<option value="">Error loading indices</option>';
+            }
+        }
+        
+        function renderIndicesSelect() {
+            const select = document.getElementById('indicesSelect');
+            
+            if (availableIndices.length === 0) {
+                select.innerHTML = '<option value="">No indices found</option>';
+                return;
+            }
+            
+            // Get currently selected values from the hidden input (for initial load or history)
+            const hiddenInput = document.getElementById('indices');
+            const currentlySelected = hiddenInput.value.split(',').map(s => s.trim()).filter(s => s);
+            
+            select.innerHTML = '';
+            availableIndices.forEach(index => {
+                const option = document.createElement('option');
+                option.value = index.name;
+                const docCount = index.documentCount ? index.documentCount.toLocaleString() : '0';
+                const size = index.sizeFormatted || '0 B';
+                option.textContent = `${index.name} (${docCount} docs, ${size})`;
+                
+                // Select if it was previously selected
+                if (currentlySelected.includes(index.name)) {
+                    option.selected = true;
+                }
+                
+                select.appendChild(option);
+            });
+            
+            // Update hidden input when selection changes
+            select.addEventListener('change', updateHiddenIndicesInput);
+            
+            // Initialize hidden input with selected values
+            updateHiddenIndicesInput();
+        }
+        
+        function updateHiddenIndicesInput() {
+            const select = document.getElementById('indicesSelect');
+            const selectedOptions = Array.from(select.selectedOptions);
+            const selectedIndices = selectedOptions.map(opt => opt.value).join(', ');
+            document.getElementById('indices').value = selectedIndices;
+        }
+        
+        // Refresh indices button
+        document.getElementById('refreshIndicesBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('refreshIndicesBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Loading...';
+            await loadIndices();
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh';
+        });
+        
+        // Load indices on page load
+        loadIndices();
         
         // Page navigation
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -1000,6 +1082,9 @@
                     
                     document.getElementById('query').value = entry.query;
                     document.getElementById('indices').value = entry.indices;
+                    
+                    // Update dropdown selection to match restored indices
+                    renderIndicesSelect();
                     
                     // Restore time range if present
                     if (entry.timeRange) {

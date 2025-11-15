@@ -299,11 +299,11 @@
                     <label for="filePath">File Path *</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" id="filePath" placeholder="/path/to/logfile.log" required style="flex: 1;">
-                        <input type="file" id="fileInput" style="display: none;">
+                        <input type="file" id="fileInput" style="display: none;" webkitdirectory="false" accept=".log,.txt,*">
                         <button type="button" class="secondary" onclick="document.getElementById('fileInput').click()">Browse</button>
                         <button type="button" class="secondary" id="loadPreview">Load Preview</button>
                     </div>
-                    <div class="form-hint">Absolute path to the log file to tail</div>
+                    <div class="form-hint">Enter the full absolute path (e.g., /Users/yourname/logs/app.log). Browse button may not show full paths in web apps - type the path manually if needed.</div>
                 </div>
                 
                 <!-- Live Preview Section -->
@@ -496,11 +496,45 @@
             loadIndices();
         });
         
-        // File input handler
-        document.getElementById('fileInput').addEventListener('change', (e) => {
+        // File input handler - note: browser file API has security restrictions
+        // and cannot access full file paths. Users should type the full path manually.
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
-                document.getElementById('filePath').value = file.path || file.name;
+                // Browsers don't expose full paths for security reasons
+                // Show a helpful message and the filename only
+                const fileName = file.name;
+                document.getElementById('filePath').value = fileName;
+                
+                // Try to read a sample to help user
+                try {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        const text = evt.target.result;
+                        const lines = text.split('\n').filter(l => l.trim()).slice(0, 100);
+                        allLoadedLines = lines;
+                        
+                        if (lines.length > 0) {
+                            // Create line selector
+                            const lineSelectorHtml = lines.map((line, index) => `
+                                <div class="line-item">
+                                    <input type="checkbox" id="line-${index}" value="${index}" onchange="updatePreview()" ${index < 5 ? 'checked' : ''}>
+                                    <span class="line-number">${index + 1}</span>
+                                    <label for="line-${index}" class="line-text">${escapeHtml(line)}</label>
+                                </div>
+                            `).join('');
+                            
+                            document.getElementById('lineSelector').innerHTML = lineSelectorHtml;
+                            document.getElementById('previewSection').style.display = 'block';
+                            updatePreview();
+                            
+                            showMessage('addMessage', `Loaded preview from file. Please enter the FULL PATH manually (e.g., /Users/yourname/logs/${fileName})`, 'error');
+                        }
+                    };
+                    reader.readAsText(file.slice(0, 100000)); // Read first 100KB
+                } catch (error) {
+                    console.error('Error reading file:', error);
+                }
             }
         });
         
