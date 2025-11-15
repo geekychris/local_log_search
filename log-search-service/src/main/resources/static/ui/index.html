@@ -406,12 +406,13 @@
             font-weight: 500;
             color: #555;
         }
-        .time-input-group input[type="datetime-local"] {
+        .time-input-group input[type="text"] {
             width: 100%;
             padding: 0.75rem;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 1rem;
+            font-size: 0.9rem;
+            font-family: 'Monaco', 'Courier New', monospace;
         }
         .time-range-display {
             color: #666;
@@ -562,6 +563,93 @@
             max-height: 500px;
             margin-top: 1rem;
         }
+        .time-refinement-popup {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 280px;
+            padding: 0;
+        }
+        .time-refinement-popup.active {
+            display: block;
+        }
+        .time-popup-header {
+            background: #2c3e50;
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        .time-popup-section {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .time-popup-section:last-child {
+            border-bottom: none;
+        }
+        .time-popup-section-title {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .time-popup-option {
+            padding: 0.6rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .time-popup-option:hover {
+            background: #f0f0f0;
+        }
+        .time-popup-option-icon {
+            width: 20px;
+            text-align: center;
+            color: #3498db;
+        }
+        .time-popup-custom {
+            padding: 0.75rem 1rem;
+        }
+        .time-popup-custom-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .time-popup-custom-row input {
+            flex: 1;
+            padding: 0.4rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .time-popup-custom-row select {
+            padding: 0.4rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .time-popup-custom-row button {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.875rem;
+        }
+        .timestamp-clickable {
+            cursor: pointer;
+            color: #3498db;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+        }
+        .timestamp-clickable:hover {
+            color: #2980b9;
+            text-decoration-style: solid;
+        }
     </style>
 </head>
 <body>
@@ -603,10 +691,26 @@
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>Time Range (optional)</label>
-                                <button type="button" class="time-picker-btn" id="timeRangeBtn">
-                                    🕐 Select Time Range
-                                </button>
+                                <label>Time Range</label>
+                                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                                    <select id="quickTimeRange" style="flex: 1; min-width: 150px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem;">
+                                        <option value="">All time (default)</option>
+                                        <option value="5m">Last 5 minutes</option>
+                                        <option value="15m">Last 15 minutes</option>
+                                        <option value="30m">Last 30 minutes</option>
+                                        <option value="1h">Last 1 hour</option>
+                                        <option value="2h">Last 2 hours</option>
+                                        <option value="4h">Last 4 hours</option>
+                                        <option value="12h">Last 12 hours</option>
+                                        <option value="24h">Last 24 hours</option>
+                                        <option value="7d">Last 7 days</option>
+                                        <option value="30d">Last 30 days</option>
+                                        <option value="custom">Custom range...</option>
+                                    </select>
+                                    <button type="button" class="time-picker-btn" id="timeRangeBtn" style="white-space: nowrap;">
+                                        🕐 Custom
+                                    </button>
+                                </div>
                                 <div class="time-range-display" id="timeRangeDisplay">All time</div>
                             </div>
                             <div class="bucket-config">
@@ -862,13 +966,21 @@
             <h3>Select Time Range</h3>
             
             <div class="time-input-group">
-                <label for="timeFrom">From</label>
-                <input type="datetime-local" id="timeFrom">
+                <label for="timeFrom">From (ISO format with millis)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="timeFrom" placeholder="2025-11-15T10:30:45.123Z" style="flex: 1;">
+                    <button type="button" id="setFromNow" class="secondary" style="padding: 0.5rem; white-space: nowrap;">Now</button>
+                </div>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Format: YYYY-MM-DDTHH:mm:ss.sssZ</div>
             </div>
             
             <div class="time-input-group">
-                <label for="timeTo">To</label>
-                <input type="datetime-local" id="timeTo">
+                <label for="timeTo">To (ISO format with millis)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="timeTo" placeholder="2025-11-15T10:35:45.123Z" style="flex: 1;">
+                    <button type="button" id="setToNow" class="secondary" style="padding: 0.5rem; white-space: nowrap;">Now</button>
+                </div>
+                <div style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Format: YYYY-MM-DDTHH:mm:ss.sssZ</div>
             </div>
             
             <div class="button-group" style="margin-top: 1.5rem;">
@@ -903,11 +1015,220 @@
         </div>
     </div>
 
+    <!-- Time Refinement Popup -->
+    <div id="timeRefinementPopup" class="time-refinement-popup">
+        <div class="time-popup-header">
+            Refine by Time
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Quick Actions</div>
+            <div class="time-popup-option" data-action="before">
+                <span class="time-popup-option-icon">◀</span>
+                <span>Before this time</span>
+            </div>
+            <div class="time-popup-option" data-action="after">
+                <span class="time-popup-option-icon">▶</span>
+                <span>After this time</span>
+            </div>
+            <div class="time-popup-option" data-action="around">
+                <span class="time-popup-option-icon">◆</span>
+                <span>Around this time (±5 min)</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Before by...</div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">After by...</div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Around by...</div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section time-popup-custom">
+            <div class="time-popup-section-title" style="padding-left: 0;">Custom Range</div>
+            <div class="time-popup-custom-row">
+                <input type="number" id="customTimeAmount" placeholder="Amount" min="1" value="5">
+                <select id="customTimeUnit">
+                    <option value="ms">Milliseconds</option>
+                    <option value="s" selected>Seconds</option>
+                    <option value="m">Minutes</option>
+                    <option value="h">Hours</option>
+                    <option value="d">Days</option>
+                </select>
+            </div>
+            <div class="time-popup-custom-row">
+                <button id="customBefore">◀ Before</button>
+                <button id="customAfter">▶ After</button>
+                <button id="customAround">◆ Around</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State management
         let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
         let facetBuckets = {}; // field -> {ranges: [...]}
         let availableIndices = [];
+        let currentTimestamp = null;
+        
+        // Time refinement popup management
+        function showTimeRefinementPopup(timestamp, x, y) {
+            currentTimestamp = timestamp;
+            const popup = document.getElementById('timeRefinementPopup');
+            popup.classList.add('active');
+            
+            // Position popup near click, but keep it on screen
+            const rect = popup.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width - 20;
+            const maxY = window.innerHeight - rect.height - 20;
+            
+            popup.style.left = Math.min(x, maxX) + 'px';
+            popup.style.top = Math.min(y, maxY) + 'px';
+        }
+        
+        function hideTimeRefinementPopup() {
+            document.getElementById('timeRefinementPopup').classList.remove('active');
+            currentTimestamp = null;
+        }
+        
+        // Convert time amount and unit to milliseconds
+        function getMilliseconds(amount, unit) {
+            const conversions = {
+                'ms': 1,
+                's': 1000,
+                'm': 60000,
+                'h': 3600000,
+                'd': 86400000
+            };
+            return amount * conversions[unit];
+        }
+        
+        // Apply time refinement to search
+        function applyTimeRefinement(action, amount = null, unit = null) {
+            if (!currentTimestamp) return;
+            
+            const timestamp = new Date(currentTimestamp);
+            const timestampMs = timestamp.getTime();
+            
+            let fromDate, toDate;
+            
+            switch(action) {
+                case 'before':
+                    // Everything before this timestamp
+                    toDate = timestamp.toISOString();
+                    break;
+                    
+                case 'after':
+                    // Everything after this timestamp
+                    fromDate = timestamp.toISOString();
+                    break;
+                    
+                case 'around':
+                    // ±5 minutes by default
+                    const defaultRange = 5 * 60 * 1000; // 5 minutes in ms
+                    fromDate = new Date(timestampMs - defaultRange).toISOString();
+                    toDate = new Date(timestampMs + defaultRange).toISOString();
+                    break;
+                    
+                case 'before-custom':
+                    // Before by specified amount
+                    const millisBefore = getMilliseconds(amount, unit);
+                    toDate = new Date(timestampMs - millisBefore).toISOString();
+                    break;
+                    
+                case 'after-custom':
+                    // After by specified amount
+                    const millisAfter = getMilliseconds(amount, unit);
+                    fromDate = new Date(timestampMs + millisAfter).toISOString();
+                    break;
+                    
+                case 'around-custom':
+                    // Around by specified amount
+                    const millisAround = getMilliseconds(amount, unit);
+                    fromDate = new Date(timestampMs - millisAround).toISOString();
+                    toDate = new Date(timestampMs + millisAround).toISOString();
+                    break;
+            }
+            
+            // Update time range inputs with full ISO format (including milliseconds)
+            if (fromDate) {
+                document.getElementById('timeFrom').value = fromDate; // Full ISO string
+            } else {
+                document.getElementById('timeFrom').value = '';
+            }
+            
+            if (toDate) {
+                document.getElementById('timeTo').value = toDate; // Full ISO string
+            } else {
+                document.getElementById('timeTo').value = '';
+            }
+            
+            // Apply the time range (simulate clicking apply button)
+            document.getElementById('applyTimeRange').click();
+            
+            // Close popup
+            hideTimeRefinementPopup();
+        }
         
         // Load available indices
         async function loadIndices() {
@@ -1104,10 +1425,10 @@
                             currentTimeRange.to = null;
                         }
                         
-                        // Update display
+                        // Update display with milliseconds
                         if (currentTimeRange.from || currentTimeRange.to) {
-                            const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() : 'Start';
-                            const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() : 'End';
+                            const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() + '.' + new Date(currentTimeRange.from).getMilliseconds() : 'Start';
+                            const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() + '.' + new Date(currentTimeRange.to).getMilliseconds() : 'End';
                             timeRangeDisplay.textContent = `${fromStr} → ${toStr}`;
                         } else {
                             timeRangeDisplay.textContent = 'All time';
@@ -1252,12 +1573,39 @@
         });
         
         applyTimeRange.addEventListener('click', () => {
-            currentTimeRange.from = timeFrom.value;
-            currentTimeRange.to = timeTo.value;
+            // Parse and validate ISO timestamp format
+            const parseISOTimestamp = (value) => {
+                if (!value) return null;
+                try {
+                    const date = new Date(value);
+                    if (isNaN(date.getTime())) {
+                        return null;
+                    }
+                    return date.toISOString();
+                } catch (e) {
+                    return null;
+                }
+            };
+            
+            const fromISO = parseISOTimestamp(timeFrom.value);
+            const toISO = parseISOTimestamp(timeTo.value);
+            
+            if (fromISO === null && timeFrom.value) {
+                alert('Invalid "From" timestamp format. Use ISO format: YYYY-MM-DDTHH:mm:ss.sssZ');
+                return;
+            }
+            
+            if (toISO === null && timeTo.value) {
+                alert('Invalid "To" timestamp format. Use ISO format: YYYY-MM-DDTHH:mm:ss.sssZ');
+                return;
+            }
+            
+            currentTimeRange.from = fromISO;
+            currentTimeRange.to = toISO;
             
             if (currentTimeRange.from || currentTimeRange.to) {
-                const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() : 'Start';
-                const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() : 'End';
+                const fromStr = currentTimeRange.from ? new Date(currentTimeRange.from).toLocaleString() + '.' + new Date(currentTimeRange.from).getMilliseconds() : 'Start';
+                const toStr = currentTimeRange.to ? new Date(currentTimeRange.to).toLocaleString() + '.' + new Date(currentTimeRange.to).getMilliseconds() : 'End';
                 timeRangeDisplay.textContent = `${fromStr} → ${toStr}`;
             } else {
                 timeRangeDisplay.textContent = 'All time';
@@ -1271,12 +1619,85 @@
             timeTo.value = '';
             currentTimeRange = { from: null, to: null };
             timeRangeDisplay.textContent = 'All time';
+            quickTimeRangeSelect.value = ''; // Reset to "All time"
             timePickerModal.style.display = 'none';
         });
         
         window.addEventListener('click', (e) => {
             if (e.target === timePickerModal) {
                 timePickerModal.style.display = 'none';
+            }
+        });
+        
+        // "Now" button handlers for time inputs
+        document.getElementById('setFromNow').addEventListener('click', () => {
+            timeFrom.value = new Date().toISOString();
+        });
+        
+        document.getElementById('setToNow').addEventListener('click', () => {
+            timeTo.value = new Date().toISOString();
+        });
+        
+        // Quick time range selector (Last N minutes/hours)
+        const quickTimeRangeSelect = document.getElementById('quickTimeRange');
+        quickTimeRangeSelect.addEventListener('change', (e) => {
+            const value = e.target.value;
+            
+            if (value === '' || !value) {
+                // All time - clear custom range
+                timeFrom.value = '';
+                timeTo.value = '';
+                currentTimeRange = { from: null, to: null };
+                timeRangeDisplay.textContent = 'All time';
+                return;
+            }
+            
+            if (value === 'custom') {
+                // Open custom time picker modal
+                timePickerModal.style.display = 'block';
+                return;
+            }
+            
+            // Parse the time range (e.g., "5m", "1h", "7d")
+            const amount = parseInt(value);
+            const unit = value.slice(-1);
+            
+            const now = new Date();
+            let milliseconds = 0;
+            
+            switch(unit) {
+                case 'm': // minutes
+                    milliseconds = amount * 60 * 1000;
+                    break;
+                case 'h': // hours
+                    milliseconds = amount * 60 * 60 * 1000;
+                    break;
+                case 'd': // days
+                    milliseconds = amount * 24 * 60 * 60 * 1000;
+                    break;
+            }
+            
+            const fromDate = new Date(now.getTime() - milliseconds);
+            
+            // Set time range
+            currentTimeRange.from = fromDate.toISOString();
+            currentTimeRange.to = now.toISOString();
+            
+            // Update display
+            const optionText = e.target.options[e.target.selectedIndex].text;
+            timeRangeDisplay.textContent = optionText;
+            
+            // Also update the modal inputs in case user opens it
+            timeFrom.value = currentTimeRange.from;
+            timeTo.value = currentTimeRange.to;
+        });
+        
+        // When custom time range is applied, update the dropdown to "Custom range..."
+        const originalApplyTimeRange = applyTimeRange.onclick;
+        applyTimeRange.addEventListener('click', () => {
+            // Check if a custom range was set
+            if (currentTimeRange.from || currentTimeRange.to) {
+                quickTimeRangeSelect.value = 'custom';
             }
         });
         
@@ -1287,6 +1708,7 @@
             timeTo.value = '';
             currentTimeRange = { from: null, to: null };
             timeRangeDisplay.textContent = 'All time';
+            quickTimeRangeSelect.value = ''; // Reset to "All time"
             facetBuckets = {};
             renderBucketFields();
             document.getElementById('message').innerHTML = '';
@@ -1691,9 +2113,9 @@
             
             console.log('Parsed dates - start:', startDate.toISOString(), 'end:', endDate.toISOString());
             
-            // Update time range with datetime-local format
-            const fromISO = startDate.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
-            const toISO = endDate.toISOString().slice(0, 16);
+            // Update time range with full ISO format (including milliseconds)
+            const fromISO = startDate.toISOString();
+            const toISO = endDate.toISOString();
             
             timeFrom.value = fromISO;
             timeTo.value = toISO;
@@ -1752,10 +2174,9 @@
             let timestampTo = null;
             
             if (currentTimeRange.from || currentTimeRange.to) {
-                // datetime-local format is in local time, convert to UTC epoch millis
-                // Add 'Z' to treat as UTC since our logs are in UTC
-                timestampFrom = currentTimeRange.from ? new Date(currentTimeRange.from + ':00Z').getTime() : null;
-                timestampTo = currentTimeRange.to ? new Date(currentTimeRange.to + ':00Z').getTime() : null;
+                // Parse ISO timestamps (already in UTC format with milliseconds)
+                timestampFrom = currentTimeRange.from ? new Date(currentTimeRange.from).getTime() : null;
+                timestampTo = currentTimeRange.to ? new Date(currentTimeRange.to).getTime() : null;
                 
                 console.log('Adding time filter - from:', timestampFrom, timestampFrom ? '(' + new Date(timestampFrom).toISOString() + ')' : '', 'to:', timestampTo, timestampTo ? '(' + new Date(timestampTo).toISOString() + ')' : '');
                 console.log('Original time range values - from:', currentTimeRange.from, 'to:', currentTimeRange.to);
@@ -1850,6 +2271,7 @@
                         resultDiv.className = 'result-item';
                         
                         const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : 'N/A';
+                        const timestampISO = result.timestamp || null;
                         
                         // Parse raw text and make key=value pairs clickable
                         let processedText = result.rawText || '';
@@ -1870,9 +2292,13 @@
                             }
                         }
                         
+                        const timestampHtml = timestampISO 
+                            ? `<span class="timestamp-clickable" data-timestamp="${timestampISO}" title="Click to refine search by time">${timestamp}</span>`
+                            : timestamp;
+                        
                         resultDiv.innerHTML = `
                             <div class="result-meta">
-                                <strong>Time:</strong> ${timestamp} | 
+                                <strong>Time:</strong> ${timestampHtml} | 
                                 <strong>Index:</strong> ${result.indexName} | 
                                 <strong>Score:</strong> ${result.score.toFixed(2)}
                             </div>
@@ -1887,6 +2313,15 @@
                         tag.addEventListener('click', (e) => {
                             e.preventDefault();
                             addConstraint(tag.dataset.field, tag.dataset.value);
+                        });
+                    });
+                    
+                    // Add click handlers to timestamps
+                    document.querySelectorAll('.timestamp-clickable').forEach(ts => {
+                        ts.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const timestamp = ts.dataset.timestamp;
+                            showTimeRefinementPopup(timestamp, e.pageX, e.pageY);
                         });
                     });
                     
@@ -2205,6 +2640,60 @@
             ];
             
             document.getElementById('query').placeholder = examples[Math.floor(Math.random() * examples.length)];
+        });
+        
+        // Time refinement popup event listeners
+        document.querySelectorAll('.time-popup-option[data-action]').forEach(option => {
+            option.addEventListener('click', () => {
+                const action = option.dataset.action;
+                const amount = option.dataset.amount;
+                const unit = option.dataset.unit;
+                
+                if (amount && unit) {
+                    applyTimeRefinement(action, parseInt(amount), unit);
+                } else {
+                    applyTimeRefinement(action);
+                }
+            });
+        });
+        
+        // Custom time refinement buttons
+        document.getElementById('customBefore').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('before-custom', parseInt(amount), unit);
+            }
+        });
+        
+        document.getElementById('customAfter').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('after-custom', parseInt(amount), unit);
+            }
+        });
+        
+        document.getElementById('customAround').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('around-custom', parseInt(amount), unit);
+            }
+        });
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('timeRefinementPopup');
+            const isClickInside = popup.contains(e.target) || e.target.classList.contains('timestamp-clickable');
+            if (!isClickInside) {
+                hideTimeRefinementPopup();
+            }
+        });
+        
+        // Prevent popup from closing when clicking inside it
+        document.getElementById('timeRefinementPopup').addEventListener('click', (e) => {
+            e.stopPropagation();
         });
     </script>
 </body>
