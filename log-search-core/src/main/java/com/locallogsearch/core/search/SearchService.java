@@ -7,6 +7,13 @@ import com.locallogsearch.core.pipe.PipeQueryParser.PipeCommandSpec;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.facet.FacetResult;
+import org.apache.lucene.facet.Facets;
+import org.apache.lucene.facet.FacetsCollector;
+import org.apache.lucene.facet.LabelAndValue;
+import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
+import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetCounts;
+import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -150,7 +157,7 @@ public class SearchService {
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         Integer facetSampleSize = null;
         if (request.isIncludeFacets()) {
-            FacetResult facetResult = calculateFacetsFromAllHits(searcher, query, totalHits, request.getFacetBuckets());
+            FacetResultData facetResult = calculateFacetsFromAllHits(searcher, query, totalHits, request.getFacetBuckets());
             facets = facetResult.facets;
             facetSampleSize = facetResult.sampleSize;
         }
@@ -275,68 +282,95 @@ public class SearchService {
     /**
      * Helper class to return facets with metadata
      */
-    private static class FacetResult {
+    private static class FacetResultData {
         Map<String, Map<String, Integer>> facets;
         int sampleSize;
         
-        FacetResult(Map<String, Map<String, Integer>> facets, int sampleSize) {
+        FacetResultData(Map<String, Map<String, Integer>> facets, int sampleSize) {
             this.facets = facets;
             this.sampleSize = sampleSize;
         }
     }
     
     /**
-     * Calculate facets from ALL matching documents, not just the returned page.
-     * This dynamically discovers fields and counts values across all hits.
-     * Supports bucketing numeric fields into ranges.
-     * For performance, limits faceting to 100k documents max.
+     * Calculate facets from ALL matching documents using Lucene's native faceting.
+     * This uses SortedSetDocValuesFacetCounts for accurate counts across all results.
+     * No sampling - counts ALL matching documents.
      */
-    private FacetResult calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits, 
-                                                   Map<String, SearchRequest.FacetBucketConfig> bucketConfigs) throws IOException {
+    private FacetResultData calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits, 
+                                                       Map<String, SearchRequest.FacetBucketConfig> bucketConfigs) throws IOException {
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         
         if (totalHits == 0) {
-            return new FacetResult(facets, 0);
+            return new FacetResultData(facets, 0);
         }
         
-        // Limit faceting to reasonable number of documents for performance
-        // Increased from 10k to 100k for better accuracy on large result sets
-        int maxDocsForFaceting = Math.min((int) totalHits, 100000);
-        TopDocs allDocs = searcher.search(query, maxDocsForFaceting);
-        
-        // Dynamically discover ALL fields and count values in a single pass
-        for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
-            Document doc = searcher.doc(scoreDoc.doc);
+        try {
+            // Use FacetsCollector to collect facet counts
+            FacetsCollector fc = new FacetsCollector();
             
-            // Iterate through all fields in this document
-            for (IndexableField field : doc.getFields()) {
-                String fieldName = field.name();
+            // Search with facets collector - this counts ALL matching documents
+            FacetsCollector.search(searcher, query, 10, fc);
+            
+            // Get facet reader state from the index
+            IndexReader reader = searcher.getIndexReader();
+            SortedSetDocValuesReaderState state = new DefaultSortedSetDocValuesReaderState(reader);
+            
+            // Check if there are any facet dimensions
+            int dimCount = state.getSize();
+            log.info("Found {} facet dimensions in index", dimCount);
+            
+            if (dimCount == 0) {
+                log.warn("No facet dimensions found in index - index may need to be rebuilt with facet fields");
+                return new FacetResultData(facets, 0);
+            }
+            
+            // Get all facets using native Lucene faceting
+            Facets luceneFacets = new SortedSetDocValuesFacetCounts(state, fc);
+            
+            // Get all indexed dimensions (field names) - limit to actual dimension count
+            List<FacetResult> allDims = luceneFacets.getAllDims(dimCount);
+            
+            for (FacetResult facetResult : allDims) {
+                String dimension = facetResult.dim;
                 
-                // Skip internal/system fields
-                if (fieldName.equals("raw_text") || fieldName.equals("source") || 
-                    fieldName.equals("timestamp") || fieldName.endsWith("_exact")) {
+                // Skip internal fields
+                if (dimension.equals("raw_text") || dimension.equals("source") || 
+                    dimension.equals("timestamp") || dimension.endsWith("_exact") || dimension.endsWith("_num")) {
                     continue;
                 }
                 
-                String value = field.stringValue();
-                if (value != null && !value.isEmpty()) {
-                    // Check if this field should be bucketed
-                    if (bucketConfigs != null && bucketConfigs.containsKey(fieldName)) {
-                        String bucketLabel = bucketValue(value, bucketConfigs.get(fieldName));
+                Map<String, Integer> valueCounts = new HashMap<>();
+                
+                // Get all values for this dimension
+                for (LabelAndValue lv : facetResult.labelValues) {
+                    String value = lv.label;
+                    int count = lv.value.intValue();
+                    
+                    // Apply bucketing if configured
+                    if (bucketConfigs != null && bucketConfigs.containsKey(dimension)) {
+                        String bucketLabel = bucketValue(value, bucketConfigs.get(dimension));
                         if (bucketLabel != null) {
-                            facets.computeIfAbsent(fieldName, k -> new HashMap<>())
-                                  .merge(bucketLabel, 1, Integer::sum);
+                            valueCounts.merge(bucketLabel, count, Integer::sum);
                         }
                     } else {
-                        // Normal faceting - count exact values
-                        facets.computeIfAbsent(fieldName, k -> new HashMap<>())
-                              .merge(value, 1, Integer::sum);
+                        valueCounts.put(value, count);
                     }
                 }
+                
+                if (!valueCounts.isEmpty()) {
+                    facets.put(dimension, valueCounts);
+                }
             }
+            
+            // Return actual count of documents that were faceted (all matching docs)
+            return new FacetResultData(facets, (int) totalHits);
+            
+        } catch (Exception e) {
+            log.error("Error calculating facets with native Lucene faceting", e);
+            // Return empty facets on error
+            return new FacetResultData(facets, 0);
         }
-        
-        return new FacetResult(facets, allDocs.scoreDocs.length);
     }
     
     /**

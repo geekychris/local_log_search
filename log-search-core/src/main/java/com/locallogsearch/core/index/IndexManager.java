@@ -4,6 +4,8 @@ import com.locallogsearch.core.config.IndexConfig;
 import com.locallogsearch.core.model.LogEntry;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
+import org.apache.lucene.facet.FacetsConfig;
+import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
@@ -28,11 +30,14 @@ public class IndexManager implements AutoCloseable {
     private final Map<String, IndexWriter> indexWriters;
     private final ScheduledExecutorService commitScheduler;
     private final StandardAnalyzer analyzer;
+    private final FacetsConfig facetsConfig;
     
     public IndexManager(IndexConfig config) {
         this.config = config;
         this.indexWriters = new ConcurrentHashMap<>();
         this.analyzer = new StandardAnalyzer();
+        this.facetsConfig = new FacetsConfig();
+        // Use default field name for facets (don't override)
         this.commitScheduler = Executors.newSingleThreadScheduledExecutor();
         
         // Schedule periodic commits
@@ -72,6 +77,14 @@ public class IndexManager implements AutoCloseable {
             doc.add(new TextField(fieldName, fieldValue, Field.Store.YES));
             doc.add(new StringField(fieldName + "_exact", fieldValue, Field.Store.NO));
             
+            // Add facet field for efficient aggregation
+            // Skip very long values to avoid bloating the index
+            if (fieldValue.length() <= 100) {
+                doc.add(new SortedSetDocValuesFacetField(fieldName, fieldValue));
+                // Configure facet dimension to be multi-valued
+                facetsConfig.setMultiValued(fieldName, true);
+            }
+            
             // Try to parse as number and store numeric field for range queries
             try {
                 double numericValue = Double.parseDouble(fieldValue.trim());
@@ -84,7 +97,9 @@ public class IndexManager implements AutoCloseable {
             }
         }
         
-        writer.addDocument(doc);
+        // Process document with FacetsConfig to properly index facet fields
+        Document processedDoc = facetsConfig.build(doc);
+        writer.addDocument(processedDoc);
     }
     
     private IndexWriter getOrCreateWriter(String indexName) throws IOException {
