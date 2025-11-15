@@ -68,9 +68,20 @@ public class IndexManager implements AutoCloseable {
             String fieldName = field.getKey();
             String fieldValue = field.getValue();
             
-            // Store as both searchable text and stored field
+            // Store as searchable text and exact match
             doc.add(new TextField(fieldName, fieldValue, Field.Store.YES));
             doc.add(new StringField(fieldName + "_exact", fieldValue, Field.Store.NO));
+            
+            // Try to parse as number and store numeric field for range queries
+            try {
+                double numericValue = Double.parseDouble(fieldValue.trim());
+                // Store as DoublePoint for efficient range queries
+                doc.add(new DoublePoint(fieldName + "_num", numericValue));
+                doc.add(new StoredField(fieldName + "_num", numericValue));
+                doc.add(new DoubleDocValuesField(fieldName + "_num", numericValue));
+            } catch (NumberFormatException e) {
+                // Not a number, skip numeric indexing
+            }
         }
         
         writer.addDocument(doc);
@@ -111,6 +122,36 @@ public class IndexManager implements AutoCloseable {
                 log.error("Failed to commit index: {}", entry.getKey(), e);
             }
         }
+    }
+    
+    /**
+     * Clear all documents from the specified index.
+     * This closes the existing writer and creates a new one with an empty index.
+     * 
+     * @param indexName the name of the index to clear
+     * @throws IOException if an I/O error occurs
+     */
+    public void clearIndex(String indexName) throws IOException {
+        log.info("Clearing index: {}", indexName);
+        
+        // Close existing writer if it exists
+        IndexWriter existingWriter = indexWriters.remove(indexName);
+        if (existingWriter != null) {
+            existingWriter.close();
+        }
+        
+        // Delete all documents by creating a new writer and calling deleteAll
+        Path indexPath = Paths.get(config.getBaseDirectory(), indexName);
+        if (Files.exists(indexPath)) {
+            Directory directory = FSDirectory.open(indexPath);
+            IndexWriterConfig writerConfig = new IndexWriterConfig(analyzer);
+            try (IndexWriter writer = new IndexWriter(directory, writerConfig)) {
+                writer.deleteAll();
+                writer.commit();
+            }
+        }
+        
+        log.info("Index cleared: {}", indexName);
     }
     
     @Override

@@ -1,15 +1,27 @@
 package com.locallogsearch.service.config;
 
 import com.locallogsearch.core.config.IndexConfig;
+import com.locallogsearch.core.config.LogSourceConfig;
 import com.locallogsearch.core.index.IndexManager;
 import com.locallogsearch.core.search.SearchService;
+import com.locallogsearch.core.tailer.FileTailerState;
 import com.locallogsearch.core.tailer.TailerManager;
+import com.locallogsearch.service.model.TailerState;
+import com.locallogsearch.service.repository.LogSourceRepository;
+import com.locallogsearch.service.repository.TailerStateRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import jakarta.annotation.PostConstruct;
+import java.nio.file.Paths;
+import java.util.Map;
+
 @Configuration
 public class ServiceConfiguration {
+    private static final Logger log = LoggerFactory.getLogger(ServiceConfiguration.class);
     
     @Value("${index.base-directory}")
     private String baseDirectory;
@@ -19,6 +31,9 @@ public class ServiceConfiguration {
     
     @Value("${index.max-buffered-docs}")
     private int maxBufferedDocs;
+    
+    @Value("${state.directory:./state}")
+    private String stateDirectory;
     
     @Bean
     public IndexConfig indexConfig() {
@@ -35,8 +50,32 @@ public class ServiceConfiguration {
     }
     
     @Bean
-    public TailerManager tailerManager(IndexManager indexManager) {
-        return new TailerManager(indexManager);
+    public LogSourceRepository logSourceRepository() {
+        return new LogSourceRepository(Paths.get(stateDirectory));
+    }
+    
+    @Bean
+    public TailerStateRepository tailerStateRepository() {
+        return new TailerStateRepository(Paths.get(stateDirectory));
+    }
+    
+    @Bean
+    public TailerManager tailerManager(IndexManager indexManager, TailerStateRepository stateRepository) {
+        TailerManager manager = new TailerManager(indexManager);
+        
+        // Set up checkpoint callback to persist tailer state
+        manager.setCheckpointCallback((sourceId, state) -> {
+            TailerState persistentState = new TailerState(
+                state.getFilePath(),
+                state.getFilePointer(),
+                state.getLastModifiedTime(),
+                state.getFileSize(),
+                state.getFileKey()
+            );
+            stateRepository.save(sourceId, persistentState);
+        });
+        
+        return manager;
     }
     
     @Bean

@@ -14,7 +14,9 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.FSDirectory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -104,6 +106,9 @@ public class SearchService {
         
         Query query = parser.parse(request.getQuery());
         
+        // Rewrite range queries to use numeric fields if applicable
+        query = rewriteNumericRangeQueries(query, reader);
+        
         // Add timestamp range filter if specified
         if (request.getTimestampFrom() != null || request.getTimestampTo() != null) {
             long from = request.getTimestampFrom() != null ? request.getTimestampFrom() : 0L;
@@ -119,14 +124,23 @@ public class SearchService {
             log.info("Combined query: {}", query);
         }
         
-        // Get enough results for pagination and faceting
-        // For pipe queries, we might need more results
-        int requestedPageSize = request.getPageSize();
-        int maxDocsToFetch = requestedPageSize > 0 ? Math.min(requestedPageSize, reader.numDocs()) : Math.min(10000, reader.numDocs());
-        TopDocs topDocs = searcher.search(query, maxDocsToFetch);
+        // Get accurate total hit count using IndexSearcher.count()
+        int totalHits = searcher.count(query);
+        
+        // Fetch only the documents we need for pagination + some buffer for sorting/faceting
+        // We need to fetch (page * pageSize) + pageSize documents to get the right page
+        int docsNeeded = (request.getPage() + 1) * request.getPageSize();
+        int docsToFetch = Math.min(docsNeeded, totalHits);
+        
+        TopDocs topDocs = searcher.search(query, Math.max(docsToFetch, 1));
+        
+        // Extract only the documents for the requested page
+        int startIndex = request.getPage() * request.getPageSize();
+        int endIndex = Math.min(startIndex + request.getPageSize(), topDocs.scoreDocs.length);
         
         List<SearchResult> results = new ArrayList<>();
-        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+        for (int i = startIndex; i < endIndex; i++) {
+            ScoreDoc scoreDoc = topDocs.scoreDocs[i];
             Document doc = searcher.doc(scoreDoc.doc);
             SearchResult result = documentToSearchResult(doc, indexName, scoreDoc.score);
             results.add(result);
@@ -134,11 +148,16 @@ public class SearchService {
         
         // Calculate facets if requested - use ALL matching documents, not just the page
         Map<String, Map<String, Integer>> facets = new HashMap<>();
+        Integer facetSampleSize = null;
         if (request.isIncludeFacets()) {
-            facets = calculateFacetsFromAllHits(searcher, query, topDocs.totalHits.value, request.getFacetBuckets());
+            FacetResult facetResult = calculateFacetsFromAllHits(searcher, query, totalHits, request.getFacetBuckets());
+            facets = facetResult.facets;
+            facetSampleSize = facetResult.sampleSize;
         }
         
-        return new SearchResponse(results, (int) topDocs.totalHits.value, 0, results.size(), facets);
+        SearchResponse response = new SearchResponse(results, totalHits, 0, results.size(), facets);
+        response.setFacetSampleSize(facetSampleSize);
+        return response;
     }
     
     private IndexReader getOrOpenReader(String indexName, Path indexPath) throws IOException {
@@ -174,11 +193,12 @@ public class SearchService {
             result.setTimestamp(Instant.ofEpochMilli(timestampMillis));
         }
         
-        // Extract all other fields
+        // Extract all other fields (skip _num variants)
         Map<String, String> fields = new HashMap<>();
         doc.getFields().forEach(field -> {
             String name = field.name();
-            if (!name.equals("raw_text") && !name.equals("source") && !name.equals("timestamp") && !name.endsWith("_exact")) {
+            if (!name.equals("raw_text") && !name.equals("source") && !name.equals("timestamp") 
+                && !name.endsWith("_exact") && !name.endsWith("_num")) {
                 fields.put(name, field.stringValue());
             }
         });
@@ -188,20 +208,100 @@ public class SearchService {
     }
     
     /**
+     * Rewrites range queries on text fields to use numeric fields if they exist.
+     * Detects TermRangeQuery and converts to DoublePoint range query if field_num exists.
+     */
+    private Query rewriteNumericRangeQueries(Query query, IndexReader reader) throws IOException {
+        if (query instanceof TermRangeQuery) {
+            TermRangeQuery rangeQuery = (TermRangeQuery) query;
+            String fieldName = rangeQuery.getField();
+            String numericFieldName = fieldName + "_num";
+            
+            // Check if numeric field exists in the index
+            if (hasNumericField(reader, numericFieldName)) {
+                try {
+                    // Parse bounds
+                    double lowerBound = Double.NEGATIVE_INFINITY;
+                    double upperBound = Double.POSITIVE_INFINITY;
+                    
+                    if (rangeQuery.getLowerTerm() != null) {
+                        lowerBound = Double.parseDouble(rangeQuery.getLowerTerm().utf8ToString());
+                    }
+                    if (rangeQuery.getUpperTerm() != null) {
+                        upperBound = Double.parseDouble(rangeQuery.getUpperTerm().utf8ToString());
+                    }
+                    
+                    log.info("Rewriting range query on {} to use numeric field {} with range [{}, {}]",
+                        fieldName, numericFieldName, lowerBound, upperBound);
+                    
+                    return DoublePoint.newRangeQuery(numericFieldName, lowerBound, upperBound);
+                } catch (NumberFormatException e) {
+                    // Can't parse as number, keep original query
+                    log.debug("Could not parse range bounds as numbers for field {}, keeping text range query", fieldName);
+                }
+            }
+        } else if (query instanceof BooleanQuery) {
+            // Recursively rewrite sub-queries
+            BooleanQuery boolQuery = (BooleanQuery) query;
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            boolean changed = false;
+            
+            for (BooleanClause clause : boolQuery.clauses()) {
+                Query rewritten = rewriteNumericRangeQueries(clause.getQuery(), reader);
+                builder.add(rewritten, clause.getOccur());
+                if (rewritten != clause.getQuery()) {
+                    changed = true;
+                }
+            }
+            
+            return changed ? builder.build() : query;
+        }
+        
+        return query;
+    }
+    
+    /**
+     * Check if a numeric field exists in the index.
+     */
+    private boolean hasNumericField(IndexReader reader, String fieldName) {
+        try {
+            return reader.leaves().stream()
+                .anyMatch(ctx -> ctx.reader().getFieldInfos().fieldInfo(fieldName) != null);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Helper class to return facets with metadata
+     */
+    private static class FacetResult {
+        Map<String, Map<String, Integer>> facets;
+        int sampleSize;
+        
+        FacetResult(Map<String, Map<String, Integer>> facets, int sampleSize) {
+            this.facets = facets;
+            this.sampleSize = sampleSize;
+        }
+    }
+    
+    /**
      * Calculate facets from ALL matching documents, not just the returned page.
      * This dynamically discovers fields and counts values across all hits.
      * Supports bucketing numeric fields into ranges.
+     * For performance, limits faceting to 100k documents max.
      */
-    private Map<String, Map<String, Integer>> calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits, 
-                                                                           Map<String, SearchRequest.FacetBucketConfig> bucketConfigs) throws IOException {
+    private FacetResult calculateFacetsFromAllHits(IndexSearcher searcher, Query query, long totalHits, 
+                                                   Map<String, SearchRequest.FacetBucketConfig> bucketConfigs) throws IOException {
         Map<String, Map<String, Integer>> facets = new HashMap<>();
         
         if (totalHits == 0) {
-            return facets;
+            return new FacetResult(facets, 0);
         }
         
         // Limit faceting to reasonable number of documents for performance
-        int maxDocsForFaceting = Math.min((int) totalHits, 10000);
+        // Increased from 10k to 100k for better accuracy on large result sets
+        int maxDocsForFaceting = Math.min((int) totalHits, 100000);
         TopDocs allDocs = searcher.search(query, maxDocsForFaceting);
         
         // Dynamically discover ALL fields and count values in a single pass
@@ -236,7 +336,7 @@ public class SearchService {
             }
         }
         
-        return facets;
+        return new FacetResult(facets, allDocs.scoreDocs.length);
     }
     
     /**

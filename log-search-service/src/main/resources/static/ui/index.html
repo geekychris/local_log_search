@@ -1214,7 +1214,35 @@
             const queryInput = document.getElementById('query');
             let currentQuery = queryInput.value.trim();
             
-            const constraint = `${field}:${value}`;
+            // Check if value is a bucket range like "100-500" or "<100" or "1000+"
+            let constraint;
+            
+            if (value.includes('-') && !value.startsWith('<') && !value.startsWith('>')) {
+                // Range like "100-500"
+                const parts = value.split('-');
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    // Numeric range - backend will automatically use numeric field if available
+                    constraint = `${field}:[${parts[0]} TO ${parts[1]}]`;
+                } else {
+                    // Not a numeric range, treat as exact value
+                    constraint = `${field}:"${value}"`;
+                }
+            } else if (value.startsWith('<')) {
+                // Less than range
+                const num = value.substring(1).trim();
+                constraint = `${field}:[* TO ${num}]`;
+            } else if (value.endsWith('+')) {
+                // Greater than or equal range
+                const num = value.substring(0, value.length - 1).trim();
+                constraint = `${field}:[${num} TO *]`;
+            } else {
+                // Regular value - check if it needs quotes (contains spaces or special chars)
+                if (value.includes(' ') || value.includes(':') || value.includes('&')) {
+                    constraint = `${field}:"${value}"`;
+                } else {
+                    constraint = `${field}:${value}`;
+                }
+            }
             
             if (currentQuery === '') {
                 queryInput.value = constraint;
@@ -1223,6 +1251,9 @@
             }
             
             queryInput.focus();
+            
+            // Auto-trigger search
+            performSearch(0);
         }
         
         // Calculate facets from results
@@ -1246,7 +1277,7 @@
             return facets;
         }
         
-        function renderFacets(facets) {
+        function renderFacets(facets, facetSampleSize, totalHits) {
             const facetsCard = document.getElementById('facetsCard');
             const facetsList = document.getElementById('facetsList');
             
@@ -1259,6 +1290,16 @@
             
             const MAX_SHOW = 10;
             let html = '';
+            
+            // Show warning if facets are based on a sample
+            if (facetSampleSize && totalHits && facetSampleSize < totalHits) {
+                html += `
+                    <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.875rem;">
+                        ⚠️ <strong>Note:</strong> Facets calculated from ${facetSampleSize.toLocaleString()} of ${totalHits.toLocaleString()} matching documents (for performance).
+                        Counts may not reflect all results.
+                    </div>
+                `;
+            }
             
             Object.keys(facets).forEach(field => {
                 const values = facets[field];
@@ -1714,7 +1755,7 @@
                     
                     // Render facets from server
                     if (data.facets) {
-                        renderFacets(data.facets);
+                        renderFacets(data.facets, data.facetSampleSize, data.totalHits);
                     }
                     
                     // Render results

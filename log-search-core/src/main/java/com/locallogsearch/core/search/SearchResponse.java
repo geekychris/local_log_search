@@ -12,6 +12,7 @@ public class SearchResponse {
     private int page;
     private int pageSize;
     private Map<String, Map<String, Integer>> facets;
+    private Integer facetSampleSize; // Number of docs used for facet calculation (may be less than totalHits)
     
     // Pipe result fields
     private PipeResult.ResultType resultType;
@@ -88,6 +89,14 @@ public class SearchResponse {
     
     public void setFacets(Map<String, Map<String, Integer>> facets) {
         this.facets = facets;
+    }
+    
+    public Integer getFacetSampleSize() {
+        return facetSampleSize;
+    }
+    
+    public void setFacetSampleSize(Integer facetSampleSize) {
+        this.facetSampleSize = facetSampleSize;
     }
     
     public PipeResult.ResultType getResultType() {

@@ -116,6 +116,12 @@
         button.danger:hover {
             background: #c0392b;
         }
+        button.warning {
+            background: #f39c12;
+        }
+        button.warning:hover {
+            background: #e67e22;
+        }
         .button-group {
             display: flex;
             gap: 0.5rem;
@@ -776,6 +782,7 @@
                         </div>
                         <div class="source-actions">
                             <button onclick="editSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}', '${source.parserType}', ${source.parserConfig ? "'" + JSON.stringify(source.parserConfig).replace(/'/g, "\\'") + "'" : 'null'})">Edit</button>
+                            <button class="warning" onclick="reindexSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}')">Reindex</button>
                             <button class="danger" onclick="deleteSource('${source.id || source.filePath}', '${source.filePath}')">Delete</button>
                         </div>
                     </div>
@@ -784,6 +791,47 @@
             } catch (error) {
                 loadingEl.style.display = 'none';
                 showMessage('sourcesMessage', `Error loading sources: ${error.message}`, 'error');
+            }
+        }
+        
+        // Reindex source
+        async function reindexSource(id, filePath, indexName) {
+            if (!confirm(`Reindex log source: ${filePath}?\n\nThis will:\n1. Clear all documents from index "${indexName}"\n2. Re-read the entire log file from the beginning\n3. Re-index all log entries\n\nThis cannot be undone!`)) {
+                return;
+            }
+            
+            try {
+                showMessage('sourcesMessage', `Starting reindex for: ${filePath}...`, 'success');
+                
+                const response = await fetch(`/api/sources/${encodeURIComponent(id)}/reindex`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Failed to reindex source' }));
+                    throw new Error(errorData.error || 'Failed to reindex source');
+                }
+                
+                const result = await response.json();
+                showMessage('sourcesMessage', `${result.message}. The log file will be re-indexed in the background.`, 'success');
+                
+                // Reload indices to show progress
+                setTimeout(() => {
+                    loadIndices();
+                }, 1000);
+                
+                // Periodically refresh indices to show indexing progress
+                let refreshCount = 0;
+                const refreshInterval = setInterval(() => {
+                    loadIndices();
+                    refreshCount++;
+                    if (refreshCount >= 10) {
+                        clearInterval(refreshInterval);
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                showMessage('sourcesMessage', `Error: ${error.message}`, 'error');
             }
         }
         
