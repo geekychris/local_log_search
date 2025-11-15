@@ -342,6 +342,93 @@
             max-height: 500px;
             margin-top: 1rem;
         }
+        .time-refinement-popup {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 280px;
+            padding: 0;
+        }
+        .time-refinement-popup.active {
+            display: block;
+        }
+        .time-popup-header {
+            background: #2c3e50;
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        .time-popup-section {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .time-popup-section:last-child {
+            border-bottom: none;
+        }
+        .time-popup-section-title {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .time-popup-option {
+            padding: 0.6rem 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .time-popup-option:hover {
+            background: #f0f0f0;
+        }
+        .time-popup-option-icon {
+            width: 20px;
+            text-align: center;
+            color: #3498db;
+        }
+        .time-popup-custom {
+            padding: 0.75rem 1rem;
+        }
+        .time-popup-custom-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .time-popup-custom-row input {
+            flex: 1;
+            padding: 0.4rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .time-popup-custom-row select {
+            padding: 0.4rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .time-popup-custom-row button {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.875rem;
+        }
+        .timestamp-clickable {
+            cursor: pointer;
+            color: #3498db;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+        }
+        .timestamp-clickable:hover {
+            color: #2980b9;
+            text-decoration-style: solid;
+        }
     </style>
 </head>
 <body>
@@ -598,9 +685,218 @@
         </div>
     </div>
 
+    <!-- Time Refinement Popup -->
+    <div id="timeRefinementPopup" class="time-refinement-popup">
+        <div class="time-popup-header">
+            Refine by Time
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Quick Actions</div>
+            <div class="time-popup-option" data-action="before">
+                <span class="time-popup-option-icon">◀</span>
+                <span>Before this time</span>
+            </div>
+            <div class="time-popup-option" data-action="after">
+                <span class="time-popup-option-icon">▶</span>
+                <span>After this time</span>
+            </div>
+            <div class="time-popup-option" data-action="around">
+                <span class="time-popup-option-icon">◆</span>
+                <span>Around this time (±5 min)</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Before by...</div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="before-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">◀</span>
+                <span>1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">After by...</div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="after-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">▶</span>
+                <span>1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section">
+            <div class="time-popup-section-title">Around by...</div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="1000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 second</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="5000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±5 seconds</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="60000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 minute</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="300000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±5 minutes</span>
+            </div>
+            <div class="time-popup-option" data-action="around-custom" data-amount="3600000" data-unit="ms">
+                <span class="time-popup-option-icon">◆</span>
+                <span>±1 hour</span>
+            </div>
+        </div>
+        <div class="time-popup-section time-popup-custom">
+            <div class="time-popup-section-title" style="padding-left: 0;">Custom Range</div>
+            <div class="time-popup-custom-row">
+                <input type="number" id="customTimeAmount" placeholder="Amount" min="1" value="10">
+                <select id="customTimeUnit">
+                    <option value="ms">Milliseconds</option>
+                    <option value="s" selected>Seconds</option>
+                    <option value="m">Minutes</option>
+                    <option value="h">Hours</option>
+                    <option value="d">Days</option>
+                </select>
+            </div>
+            <div class="time-popup-custom-row">
+                <button id="customBefore">◀ Before</button>
+                <button id="customAfter">▶ After</button>
+                <button id="customAround">◆ Around</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State management
         let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+        let currentTimestamp = null;
+        
+        // Time refinement popup management
+        function showTimeRefinementPopup(timestamp, x, y) {
+            currentTimestamp = timestamp;
+            const popup = document.getElementById('timeRefinementPopup');
+            popup.classList.add('active');
+            
+            // Position popup near click, but keep it on screen
+            const rect = popup.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width - 20;
+            const maxY = window.innerHeight - rect.height - 20;
+            
+            popup.style.left = Math.min(x, maxX) + 'px';
+            popup.style.top = Math.min(y, maxY) + 'px';
+        }
+        
+        function hideTimeRefinementPopup() {
+            document.getElementById('timeRefinementPopup').classList.remove('active');
+            currentTimestamp = null;
+        }
+        
+        // Convert time amount and unit to milliseconds
+        function getMilliseconds(amount, unit) {
+            const conversions = {
+                'ms': 1,
+                's': 1000,
+                'm': 60000,
+                'h': 3600000,
+                'd': 86400000
+            };
+            return amount * conversions[unit];
+        }
+        
+        // Apply time refinement to search
+        function applyTimeRefinement(action, amount = null, unit = null) {
+            if (!currentTimestamp) return;
+            
+            const timestamp = new Date(currentTimestamp);
+            const timestampMs = timestamp.getTime();
+            
+            let fromDate, toDate;
+            
+            switch(action) {
+                case 'before':
+                    // Everything before this timestamp
+                    toDate = timestamp.toISOString();
+                    break;
+                    
+                case 'after':
+                    // Everything after this timestamp
+                    fromDate = timestamp.toISOString();
+                    break;
+                    
+                case 'around':
+                    // ±5 minutes by default
+                    const defaultRange = 5 * 60 * 1000; // 5 minutes in ms
+                    fromDate = new Date(timestampMs - defaultRange).toISOString();
+                    toDate = new Date(timestampMs + defaultRange).toISOString();
+                    break;
+                    
+                case 'before-custom':
+                    // Before by specified amount
+                    const millisBefore = getMilliseconds(amount, unit);
+                    toDate = new Date(timestampMs - millisBefore).toISOString();
+                    break;
+                    
+                case 'after-custom':
+                    // After by specified amount
+                    const millisAfter = getMilliseconds(amount, unit);
+                    fromDate = new Date(timestampMs + millisAfter).toISOString();
+                    break;
+                    
+                case 'around-custom':
+                    // Around by specified amount
+                    const millisAround = getMilliseconds(amount, unit);
+                    fromDate = new Date(timestampMs - millisAround).toISOString();
+                    toDate = new Date(timestampMs + millisAround).toISOString();
+                    break;
+            }
+            
+            // Update date inputs and perform search
+            if (fromDate) {
+                const fromDateStr = fromDate.split('T')[0];
+                document.getElementById('dateFrom').value = fromDateStr;
+            } else {
+                document.getElementById('dateFrom').value = '';
+            }
+            
+            if (toDate) {
+                const toDateStr = toDate.split('T')[0];
+                document.getElementById('dateTo').value = toDateStr;
+            } else {
+                document.getElementById('dateTo').value = '';
+            }
+            
+            // Close popup and perform search
+            hideTimeRefinementPopup();
+            performSearch(0);
+        }
         
         // Page navigation
         document.querySelectorAll('.nav-link').forEach(link => {
@@ -1034,6 +1330,7 @@
                         resultDiv.className = 'result-item';
                         
                         const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : 'N/A';
+                        const timestampISO = result.timestamp || null;
                         
                         let fieldsHtml = '';
                         if (result.fields && Object.keys(result.fields).length > 0) {
@@ -1044,9 +1341,13 @@
                             fieldsHtml += '</div>';
                         }
                         
+                        const timestampHtml = timestampISO 
+                            ? `<span class="timestamp-clickable" data-timestamp="${timestampISO}" title="Click to refine search by time">${timestamp}</span>`
+                            : timestamp;
+                        
                         resultDiv.innerHTML = `
                             <div class="result-meta">
-                                <strong>Time:</strong> ${timestamp} | 
+                                <strong>Time:</strong> ${timestampHtml} | 
                                 <strong>Index:</strong> ${result.indexName} | 
                                 <strong>Score:</strong> ${result.score.toFixed(2)}
                             </div>
@@ -1061,6 +1362,15 @@
                     document.querySelectorAll('.field-tag').forEach(tag => {
                         tag.addEventListener('click', () => {
                             addConstraint(tag.dataset.field, tag.dataset.value);
+                        });
+                    });
+                    
+                    // Add click handlers to timestamps
+                    document.querySelectorAll('.timestamp-clickable').forEach(ts => {
+                        ts.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const timestamp = ts.dataset.timestamp;
+                            showTimeRefinementPopup(timestamp, e.pageX, e.pageY);
                         });
                     });
                     
@@ -1128,6 +1438,60 @@
             ];
             
             document.getElementById('query').placeholder = examples[Math.floor(Math.random() * examples.length)];
+        });
+        
+        // Time refinement popup event listeners
+        document.querySelectorAll('.time-popup-option[data-action]').forEach(option => {
+            option.addEventListener('click', () => {
+                const action = option.dataset.action;
+                const amount = option.dataset.amount;
+                const unit = option.dataset.unit;
+                
+                if (amount && unit) {
+                    applyTimeRefinement(action, parseInt(amount), unit);
+                } else {
+                    applyTimeRefinement(action);
+                }
+            });
+        });
+        
+        // Custom time refinement buttons
+        document.getElementById('customBefore').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('before-custom', parseInt(amount), unit);
+            }
+        });
+        
+        document.getElementById('customAfter').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('after-custom', parseInt(amount), unit);
+            }
+        });
+        
+        document.getElementById('customAround').addEventListener('click', () => {
+            const amount = document.getElementById('customTimeAmount').value;
+            const unit = document.getElementById('customTimeUnit').value;
+            if (amount && parseInt(amount) > 0) {
+                applyTimeRefinement('around-custom', parseInt(amount), unit);
+            }
+        });
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', (e) => {
+            const popup = document.getElementById('timeRefinementPopup');
+            const isClickInside = popup.contains(e.target) || e.target.classList.contains('timestamp-clickable');
+            if (!isClickInside) {
+                hideTimeRefinementPopup();
+            }
+        });
+        
+        // Prevent popup from closing when clicking inside it
+        document.getElementById('timeRefinementPopup').addEventListener('click', (e) => {
+            e.stopPropagation();
         });
     </script>
 </body>

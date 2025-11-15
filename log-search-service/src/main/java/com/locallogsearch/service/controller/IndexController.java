@@ -1,6 +1,9 @@
 package com.locallogsearch.service.controller;
 
 import com.locallogsearch.core.config.IndexConfig;
+import com.locallogsearch.core.truncation.TruncationConfig;
+import com.locallogsearch.core.truncation.TruncationPolicy;
+import com.locallogsearch.service.truncation.TruncationScheduler;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -24,9 +28,11 @@ public class IndexController {
     private static final Logger log = LoggerFactory.getLogger(IndexController.class);
     
     private final IndexConfig indexConfig;
+    private final TruncationScheduler truncationScheduler;
     
-    public IndexController(IndexConfig indexConfig) {
+    public IndexController(IndexConfig indexConfig, TruncationScheduler truncationScheduler) {
         this.indexConfig = indexConfig;
+        this.truncationScheduler = truncationScheduler;
     }
     
     @GetMapping
@@ -181,6 +187,213 @@ public class IndexController {
                         }
                     });
             }
+        }
+    }
+    
+    // ===== Truncation Endpoints =====
+    
+    /**
+     * Get truncation configuration for an index.
+     */
+    @GetMapping("/{indexName}/truncation")
+    public ResponseEntity<Map<String, Object>> getTruncationConfig(@PathVariable String indexName) {
+        TruncationConfig config = truncationScheduler.getTruncationConfig(indexName);
+        
+        if (config == null) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("indexName", indexName);
+            response.put("policy", "NONE");
+            response.put("autoTruncateEnabled", false);
+            return ResponseEntity.ok(response);
+        }
+        
+        return ResponseEntity.ok(convertConfigToMap(config));
+    }
+    
+    /**
+     * Set or update truncation configuration for an index.
+     */
+    @PostMapping("/{indexName}/truncation")
+    public ResponseEntity<Map<String, Object>> setTruncationConfig(
+            @PathVariable String indexName,
+            @RequestBody Map<String, Object> request) {
+        try {
+            TruncationConfig config = new TruncationConfig();
+            config.setIndexName(indexName);
+            
+            String policyStr = (String) request.get("policy");
+            TruncationPolicy policy = TruncationPolicy.valueOf(policyStr);
+            config.setPolicy(policy);
+            
+            Boolean autoTruncate = (Boolean) request.get("autoTruncateEnabled");
+            config.setAutoTruncateEnabled(autoTruncate != null && autoTruncate);
+            
+            if (policy == TruncationPolicy.TIME_BASED) {
+                Object retentionValue = request.get("retentionValue");
+                String retentionUnit = (String) request.get("retentionUnit");
+                
+                if (retentionValue == null || retentionUnit == null) {
+                    return ResponseEntity.badRequest().body(
+                        Map.of("error", "TIME_BASED policy requires retentionValue and retentionUnit")
+                    );
+                }
+                
+                Duration retention = parseDuration(retentionValue, retentionUnit);
+                config.setRetentionPeriod(retention);
+                
+                // Set truncation interval
+                Object intervalValue = request.get("intervalValue");
+                String intervalUnit = (String) request.get("intervalUnit");
+                if (intervalValue != null && intervalUnit != null) {
+                    config.setTruncationInterval(parseDuration(intervalValue, intervalUnit));
+                } else {
+                    // Default: same as retention period (or daily, whichever is less)
+                    config.setTruncationInterval(
+                        retention.compareTo(Duration.ofDays(1)) > 0 ? Duration.ofDays(1) : retention
+                    );
+                }
+                
+            } else if (policy == TruncationPolicy.VOLUME_BASED) {
+                Object maxDocsObj = request.get("maxDocuments");
+                if (maxDocsObj == null) {
+                    return ResponseEntity.badRequest().body(
+                        Map.of("error", "VOLUME_BASED policy requires maxDocuments")
+                    );
+                }
+                
+                long maxDocuments = ((Number) maxDocsObj).longValue();
+                config.setMaxDocuments(maxDocuments);
+                
+                // Set truncation interval (default: hourly for volume-based)
+                Object intervalValue = request.get("intervalValue");
+                String intervalUnit = (String) request.get("intervalUnit");
+                if (intervalValue != null && intervalUnit != null) {
+                    config.setTruncationInterval(parseDuration(intervalValue, intervalUnit));
+                } else {
+                    config.setTruncationInterval(Duration.ofHours(1));
+                }
+            }
+            
+            truncationScheduler.setTruncationConfig(config);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Truncation configuration updated");
+            response.put("config", convertConfigToMap(config));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error setting truncation config for index: {}", indexName, e);
+            return ResponseEntity.badRequest().body(
+                Map.of("error", "Invalid truncation configuration: " + e.getMessage())
+            );
+        }
+    }
+    
+    /**
+     * Delete truncation configuration for an index.
+     */
+    @DeleteMapping("/{indexName}/truncation")
+    public ResponseEntity<Map<String, String>> deleteTruncationConfig(@PathVariable String indexName) {
+        truncationScheduler.removeTruncationConfig(indexName);
+        
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Truncation configuration removed for: " + indexName);
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Manually trigger truncation for an index.
+     */
+    @PostMapping("/{indexName}/truncate")
+    public ResponseEntity<Map<String, Object>> truncateIndex(@PathVariable String indexName) {
+        try {
+            int deletedCount = truncationScheduler.executeTruncation(indexName);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Truncation completed");
+            response.put("indexName", indexName);
+            response.put("deletedDocuments", deletedCount);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error truncating index: {}", indexName, e);
+            return ResponseEntity.internalServerError().body(
+                Map.of("error", "Failed to truncate index: " + e.getMessage())
+            );
+        }
+    }
+    
+    /**
+     * Get all truncation configurations.
+     */
+    @GetMapping("/truncation")
+    public ResponseEntity<List<Map<String, Object>>> getAllTruncationConfigs() {
+        Map<String, TruncationConfig> configs = truncationScheduler.getAllConfigs();
+        
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (TruncationConfig config : configs.values()) {
+            result.add(convertConfigToMap(config));
+        }
+        
+        return ResponseEntity.ok(result);
+    }
+    
+    private Map<String, Object> convertConfigToMap(TruncationConfig config) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("indexName", config.getIndexName());
+        map.put("policy", config.getPolicy().toString());
+        map.put("autoTruncateEnabled", config.isAutoTruncateEnabled());
+        
+        if (config.getRetentionPeriod() != null) {
+            map.put("retentionPeriodSeconds", config.getRetentionPeriod().getSeconds());
+            map.put("retentionPeriodFormatted", formatDuration(config.getRetentionPeriod()));
+        }
+        
+        if (config.getMaxDocuments() != null) {
+            map.put("maxDocuments", config.getMaxDocuments());
+        }
+        
+        if (config.getTruncationInterval() != null) {
+            map.put("truncationIntervalSeconds", config.getTruncationInterval().getSeconds());
+            map.put("truncationIntervalFormatted", formatDuration(config.getTruncationInterval()));
+        }
+        
+        return map;
+    }
+    
+    private Duration parseDuration(Object value, String unit) {
+        long numValue = ((Number) value).longValue();
+        
+        switch (unit.toLowerCase()) {
+            case "minutes":
+                return Duration.ofMinutes(numValue);
+            case "hours":
+                return Duration.ofHours(numValue);
+            case "days":
+                return Duration.ofDays(numValue);
+            case "seconds":
+            default:
+                return Duration.ofSeconds(numValue);
+        }
+    }
+    
+    private String formatDuration(Duration duration) {
+        long seconds = duration.getSeconds();
+        
+        if (seconds < 60) {
+            return seconds + " second" + (seconds != 1 ? "s" : "");
+        } else if (seconds < 3600) {
+            long minutes = seconds / 60;
+            return minutes + " minute" + (minutes != 1 ? "s" : "");
+        } else if (seconds < 86400) {
+            long hours = seconds / 3600;
+            return hours + " hour" + (hours != 1 ? "s" : "");
+        } else {
+            long days = seconds / 86400;
+            return days + " day" + (days != 1 ? "s" : "");
         }
     }
 }

@@ -299,7 +299,7 @@
                     <label for="filePath">File Path *</label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" id="filePath" placeholder="/path/to/logfile.log" required style="flex: 1;">
-                        <input type="file" id="fileInput" style="display: none;" webkitdirectory="false" accept=".log,.txt,*">
+                        <input type="file" id="fileInput" style="display: none;" accept="*">
                         <button type="button" class="secondary" onclick="document.getElementById('fileInput').click()">Browse</button>
                         <button type="button" class="secondary" id="loadPreview">Load Preview</button>
                     </div>
@@ -429,6 +429,88 @@
                 <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; text-decoration: none;">
                     📖 View Complete Grok Patterns Reference →
                 </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Truncation Configuration Modal -->
+    <div id="truncationModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeTruncationModal()">&times;</span>
+            <h2>Index Truncation Configuration</h2>
+            
+            <form id="truncationForm">
+                <input type="hidden" id="truncationIndexName">
+                
+                <div class="form-group">
+                    <label for="truncationPolicy">Truncation Policy *</label>
+                    <select id="truncationPolicy" required onchange="updateTruncationForm()">
+                        <option value="NONE">None (No automatic truncation)</option>
+                        <option value="TIME_BASED">Time-Based (Keep last N hours/days)</option>
+                        <option value="VOLUME_BASED">Volume-Based (Keep last N documents)</option>
+                    </select>
+                    <div class="form-hint">Choose how to limit the index size</div>
+                </div>
+                
+                <div id="timeBasisedOptions" style="display: none;">
+                    <div class="form-group">
+                        <label for="retentionValue">Retention Period *</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="number" id="retentionValue" min="1" placeholder="1" style="flex: 1;">
+                            <select id="retentionUnit" style="flex: 1;">
+                                <option value="hours">Hours</option>
+                                <option value="days" selected>Days</option>
+                            </select>
+                        </div>
+                        <div class="form-hint">Keep documents from the last N hours/days. Example: Keep last 1 day or last 24 hours</div>
+                    </div>
+                </div>
+                
+                <div id="volumeBasedOptions" style="display: none;">
+                    <div class="form-group">
+                        <label for="maxDocuments">Maximum Documents *</label>
+                        <input type="number" id="maxDocuments" min="1" placeholder="1000000">
+                        <div class="form-hint">Keep only the most recent N documents. Example: Keep last 1,000,000 events</div>
+                    </div>
+                </div>
+                
+                <div id="autoTruncateSection" style="display: none;">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="autoTruncateEnabled" onchange="updateAutoTruncateOptions()">
+                            Enable Automatic Truncation
+                        </label>
+                        <div class="form-hint">Automatically run truncation on a schedule</div>
+                    </div>
+                    
+                    <div id="truncationIntervalOptions" style="display: none;">
+                        <div class="form-group">
+                            <label for="intervalValue">Check Interval (optional)</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="number" id="intervalValue" min="1" placeholder="Auto" style="flex: 1;">
+                                <select id="intervalUnit" style="flex: 1;">
+                                    <option value="minutes">Minutes</option>
+                                    <option value="hours" selected>Hours</option>
+                                    <option value="days">Days</option>
+                                </select>
+                            </div>
+                            <div class="form-hint">How often to check and truncate. Leave empty for default: time-based uses retention period (max 1 day), volume-based uses 1 hour</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="truncationMessage"></div>
+                
+                <div class="button-group">
+                    <button type="submit" class="warning">Save & Apply Configuration</button>
+                    <button type="button" class="secondary" onclick="manualTruncateNow()">Truncate Now (Manual)</button>
+                    <button type="button" class="secondary" onclick="closeTruncationModal()">Cancel</button>
+                </div>
+            </form>
+            
+            <div id="currentTruncationConfig" style="margin-top: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; display: none;">
+                <h3 style="margin-top: 0;">Current Configuration</h3>
+                <div id="currentConfigDisplay"></div>
             </div>
         </div>
     </div>
@@ -933,6 +1015,7 @@
                             </div>
                         </div>
                         <div class="source-actions">
+                            <button class="warning" onclick="showTruncationModal('${index.name}')">Truncate</button>
                             <button class="secondary" onclick="clearIndex('${index.name}')">Clear</button>
                             <button class="danger" onclick="deleteIndex('${index.name}')">Delete</button>
                         </div>
@@ -1166,6 +1249,223 @@
             setTimeout(() => {
                 el.innerHTML = '';
             }, 5000);
+        }
+        
+        // ===== Truncation Functions =====
+        
+        async function showTruncationModal(indexName) {
+            document.getElementById('truncationIndexName').value = indexName;
+            document.getElementById('truncationMessage').innerHTML = '';
+            
+            // Reset form
+            document.getElementById('truncationPolicy').value = 'NONE';
+            document.getElementById('retentionValue').value = '';
+            document.getElementById('retentionUnit').value = 'days';
+            document.getElementById('maxDocuments').value = '';
+            document.getElementById('autoTruncateEnabled').checked = false;
+            document.getElementById('intervalValue').value = '';
+            document.getElementById('intervalUnit').value = 'hours';
+            updateTruncationForm();
+            
+            // Load existing configuration
+            try {
+                const response = await fetch(`/api/indices/${encodeURIComponent(indexName)}/truncation`);
+                if (response.ok) {
+                    const config = await response.json();
+                    
+                    // Populate form with existing config
+                    document.getElementById('truncationPolicy').value = config.policy;
+                    
+                    if (config.policy === 'TIME_BASED' && config.retentionPeriodSeconds) {
+                        const seconds = config.retentionPeriodSeconds;
+                        if (seconds % 86400 === 0) {
+                            document.getElementById('retentionValue').value = seconds / 86400;
+                            document.getElementById('retentionUnit').value = 'days';
+                        } else if (seconds % 3600 === 0) {
+                            document.getElementById('retentionValue').value = seconds / 3600;
+                            document.getElementById('retentionUnit').value = 'hours';
+                        } else {
+                            document.getElementById('retentionValue').value = seconds / 60;
+                            document.getElementById('retentionUnit').value = 'minutes';
+                        }
+                    }
+                    
+                    if (config.policy === 'VOLUME_BASED' && config.maxDocuments) {
+                        document.getElementById('maxDocuments').value = config.maxDocuments;
+                    }
+                    
+                    document.getElementById('autoTruncateEnabled').checked = config.autoTruncateEnabled || false;
+                    
+                    if (config.truncationIntervalSeconds) {
+                        const seconds = config.truncationIntervalSeconds;
+                        if (seconds % 86400 === 0) {
+                            document.getElementById('intervalValue').value = seconds / 86400;
+                            document.getElementById('intervalUnit').value = 'days';
+                        } else if (seconds % 3600 === 0) {
+                            document.getElementById('intervalValue').value = seconds / 3600;
+                            document.getElementById('intervalUnit').value = 'hours';
+                        } else if (seconds % 60 === 0) {
+                            document.getElementById('intervalValue').value = seconds / 60;
+                            document.getElementById('intervalUnit').value = 'minutes';
+                        }
+                    }
+                    
+                    updateTruncationForm();
+                    
+                    // Show current config
+                    if (config.policy !== 'NONE') {
+                        document.getElementById('currentTruncationConfig').style.display = 'block';
+                        let configText = `<strong>Policy:</strong> ${config.policy}<br>`;
+                        
+                        if (config.retentionPeriodFormatted) {
+                            configText += `<strong>Retention:</strong> ${config.retentionPeriodFormatted}<br>`;
+                        }
+                        if (config.maxDocuments) {
+                            configText += `<strong>Max Documents:</strong> ${config.maxDocuments.toLocaleString()}<br>`;
+                        }
+                        if (config.autoTruncateEnabled) {
+                            configText += `<strong>Auto-Truncate:</strong> Enabled<br>`;
+                            if (config.truncationIntervalFormatted) {
+                                configText += `<strong>Check Interval:</strong> ${config.truncationIntervalFormatted}<br>`;
+                            }
+                        } else {
+                            configText += `<strong>Auto-Truncate:</strong> Disabled<br>`;
+                        }
+                        
+                        document.getElementById('currentConfigDisplay').innerHTML = configText;
+                    } else {
+                        document.getElementById('currentTruncationConfig').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading truncation config:', error);
+            }
+            
+            document.getElementById('truncationModal').style.display = 'block';
+        }
+        
+        function closeTruncationModal() {
+            document.getElementById('truncationModal').style.display = 'none';
+        }
+        
+        function updateTruncationForm() {
+            const policy = document.getElementById('truncationPolicy').value;
+            
+            document.getElementById('timeBasisedOptions').style.display = 
+                policy === 'TIME_BASED' ? 'block' : 'none';
+            document.getElementById('volumeBasedOptions').style.display = 
+                policy === 'VOLUME_BASED' ? 'block' : 'none';
+            document.getElementById('autoTruncateSection').style.display = 
+                policy !== 'NONE' ? 'block' : 'none';
+            
+            updateAutoTruncateOptions();
+        }
+        
+        function updateAutoTruncateOptions() {
+            const autoEnabled = document.getElementById('autoTruncateEnabled').checked;
+            document.getElementById('truncationIntervalOptions').style.display = 
+                autoEnabled ? 'block' : 'none';
+        }
+        
+        document.getElementById('truncationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const indexName = document.getElementById('truncationIndexName').value;
+            const policy = document.getElementById('truncationPolicy').value;
+            
+            const requestBody = {
+                policy: policy,
+                autoTruncateEnabled: document.getElementById('autoTruncateEnabled').checked
+            };
+            
+            if (policy === 'TIME_BASED') {
+                const retentionValue = document.getElementById('retentionValue').value;
+                const retentionUnit = document.getElementById('retentionUnit').value;
+                
+                if (!retentionValue) {
+                    showMessage('truncationMessage', 'Please enter a retention period', 'error');
+                    return;
+                }
+                
+                requestBody.retentionValue = parseInt(retentionValue);
+                requestBody.retentionUnit = retentionUnit;
+            } else if (policy === 'VOLUME_BASED') {
+                const maxDocuments = document.getElementById('maxDocuments').value;
+                
+                if (!maxDocuments) {
+                    showMessage('truncationMessage', 'Please enter maximum documents', 'error');
+                    return;
+                }
+                
+                requestBody.maxDocuments = parseInt(maxDocuments);
+            }
+            
+            // Add interval if specified
+            const intervalValue = document.getElementById('intervalValue').value;
+            const intervalUnit = document.getElementById('intervalUnit').value;
+            if (intervalValue && requestBody.autoTruncateEnabled) {
+                requestBody.intervalValue = parseInt(intervalValue);
+                requestBody.intervalUnit = intervalUnit;
+            }
+            
+            try {
+                const response = await fetch(`/api/indices/${encodeURIComponent(indexName)}/truncation`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to set truncation configuration');
+                }
+                
+                const result = await response.json();
+                showMessage('truncationMessage', result.message || 'Truncation configuration saved successfully', 'success');
+                
+                setTimeout(() => {
+                    closeTruncationModal();
+                    loadIndices();
+                }, 1500);
+                
+            } catch (error) {
+                showMessage('truncationMessage', `Error: ${error.message}`, 'error');
+            }
+        });
+        
+        async function manualTruncateNow() {
+            const indexName = document.getElementById('truncationIndexName').value;
+            
+            if (!confirm(`Manually truncate index "${indexName}" now?\n\nThis will use the current truncation configuration to remove old documents.\n\nIf no configuration is set, nothing will happen.`)) {
+                return;
+            }
+            
+            try {
+                showMessage('truncationMessage', 'Truncating index...', 'success');
+                
+                const response = await fetch(`/api/indices/${encodeURIComponent(indexName)}/truncate`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to truncate index');
+                }
+                
+                const result = await response.json();
+                showMessage('truncationMessage', 
+                    `Truncation completed: ${result.deletedDocuments.toLocaleString()} documents deleted`, 
+                    'success');
+                
+                setTimeout(() => {
+                    loadIndices();
+                }, 1000);
+                
+            } catch (error) {
+                showMessage('truncationMessage', `Error: ${error.message}`, 'error');
+            }
         }
     </script>
 </body>
