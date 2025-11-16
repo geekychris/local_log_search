@@ -477,7 +477,7 @@ public class SearchService {
         SearchRequest baseRequest = new SearchRequest();
         baseRequest.setIndices(request.getIndices());
         baseRequest.setQuery(parsedQuery.getBaseQuery());
-        baseRequest.setPageSize(100000); // Get enough results for pipe processing (increased limit)
+        baseRequest.setPageSize(Integer.MAX_VALUE); // No limit - fetch all results for accurate aggregations
         baseRequest.setIncludeFacets(false); // Don't need facets for pipes
         // Copy timestamp filters from original request
         baseRequest.setTimestampFrom(request.getTimestampFrom());
