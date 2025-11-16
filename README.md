@@ -27,21 +27,30 @@ Perfect for developers who need to debug logs locally without enterprise logging
 - [Troubleshooting](#-troubleshooting)
 - [License](#-license)
 
-
+## Index UI
 The index source management UI.  This UI lets you browse for log files, configure the parser, and monitor the index. The preview mode lets you cherry pick some log entries to then validate that the parser is parsing fields out of the logs properly.
+
 ![img.png](doc_images/source_page.png)
 
 ![img.png](doc_images/parser_preview.png)
+
+## Search  UI 
 The searh UI lets you query your logs.  You can search one or more indices.  Search results can be ordered by time or other factors.  The results include facets down the right of the UI that shows frequency breakdown of relevant fields.  You can refine your search from either the facets or from the highlighted values in the search result itself.
 The search UI supports constraining by time in a variety of ways.  You can select a time range, or you can use the interactive time selector to zoom in on a specific time period.  The interactive time selector also lets you select a date range, which is useful for when you want to see the distribution of logs over a period of time.
-Search supports a "pipe" mechanism that lets you chain together multiple operations on the search results.  For example, you can aggregate the results by a field, or you can create a time chart of the results.  The pipe mechanism is very powerful and lets you do a lot of interesting things with your search results.
+Search supports a "pipe" mechanism that lets you chain together multiple operations on the search results.  For example, you can aggregate the results by a field, or you can create a time chart of the results.  The pipe mechanism is very powerful and lets you do a lot of interesting things with your search results.//
+
 ![img_1.png](doc_images/search_page.png)
 ![img_1.png](doc_images/search_page.png)
 
+## Export Options
+
 results can be exported to CSV, JSON, or PDF.  The CSV export supports exporting only a subset of the fields in the search results.  The JSON export supports exporting only a subset of the fields in the search results, and includes a link to the full log entry in the JSON object.  The PDF export supports exporting only a subset of the fields in the search results.  Also can be exported to a local database.
+
 ![img_3.png](doc_images/export_options.png)
 
 ![img_2.png](doc_images/database_export.png)
+
+## Simple SQL Query Interface
 
 For exports to the database we provide a simple SQL interface that lets you query the exported tables.
 
