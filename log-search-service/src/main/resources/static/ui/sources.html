@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Sources - Local Log Search</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔍</text></svg>">
+    <title>Log Sources - Little Log Peep</title>
+    <link rel="icon" href="LLP_Logo.png">
     <style>
         * {
             margin: 0;
@@ -24,6 +24,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .header-logo {
+            height: 50px;
+            width: auto;
         }
         .header h1 {
             font-size: 1.5rem;
@@ -284,10 +293,13 @@
 </head>
 <body>
     <div class="header">
-        <h1>📁 Log Sources Configuration</h1>
+        <div class="header-left">
+            <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
+        </div>
         <div class="nav-links">
             <a href="/ui/index.html">🔍 Search</a>
             <a href="/ui/sql.html">🗄️ SQL Query</a>
+            <a href="/ui/test-indices.html">🔬 Indices Diagnostic</a>
         </div>
     </div>
     

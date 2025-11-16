@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Query UI - Local Log Search</title>
+    <title>SQL Query - Little Log Peep</title>
     <style>
         * {
             margin: 0;
@@ -27,6 +27,38 @@
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 2px solid #3c3c3c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-logo {
+            height: 50px;
+            width: auto;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav-links a {
+            color: #d4d4d4;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
         }
 
         h1 {
@@ -357,15 +389,22 @@
 <body>
     <div class="container">
         <header>
-            <h1>SQL Query Interface</h1>
-            <div class="connection-info">
-                <div class="status">
-                    <span class="status-dot"></span>
-                    <span>Connected to H2 Database</span>
-                </div>
-                <div>JDBC URL: jdbc:h2:file:~/.local_log_search/database/logdb</div>
+            <div class="header-left">
+                <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
+            </div>
+            <div class="nav-links">
+                <a href="/ui/index.html">🔍 Search</a>
+                <a href="/ui/sources.html">📁 Log Sources</a>
             </div>
         </header>
+        
+        <div class="connection-info">
+            <div class="status">
+                <span class="status-dot"></span>
+                <span>Connected to H2 Database</span>
+            </div>
+            <div>JDBC URL: jdbc:h2:file:~/.local_log_search/database/logdb</div>
+        </div>
 
         <div class="main-grid">
             <aside class="sidebar">

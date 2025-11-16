@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indices Diagnostic - Little Log Peep</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #e0e0e0; margin: 0; }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: -20px -20px 20px -20px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .header-logo {
+            height: 50px;
+            width: auto;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        pre { background: #2a2a2a; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px; margin: 10px 0; cursor: pointer; }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
+        </div>
+        <div class="nav-links">
+            <a href="/ui/index.html">🔍 Search</a>
+            <a href="/ui/sources.html">📁 Log Sources</a>
+            <a href="/ui/sql.html">🗄️ SQL Query</a>
+        </div>
+    </div>
+    
+    <h1>Indices Loading Diagnostic</h1>
+    
+    <button onclick="testFetch()">Test Fetch /api/indices</button>
+    <button onclick="testLoadIndices()">Test loadIndices() Function</button>
+    <button onclick="checkDOM()">Check DOM Elements</button>
+    
+    <div id="output"></div>
+    
+    <h2>Indices Dropdown:</h2>
+    <select id="indicesSelect" multiple size="10" style="width: 100%; padding: 0.5rem;">
+        <option value="">Loading...</option>
+    </select>
+    
+    <script>
+        let availableIndices = [];
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toISOString()}] ${message}`;
+            output.appendChild(div);
+        }
+        
+        async function testFetch() {
+            output.innerHTML = '';
+            log('Testing fetch to /api/indices...');
+            
+            try {
+                const response = await fetch('/api/indices');
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+                log(`Response headers: ${JSON.stringify([...response.headers])}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Response data (${data.length} indices):`, 'success');
+                    log(JSON.stringify(data, null, 2));
+                } else {
+                    log(`Error: ${await response.text()}`, 'error');
+                }
+            } catch (error) {
+                log(`Fetch error: ${error.message}`, 'error');
+                log(`Stack: ${error.stack}`, 'error');
+            }
+        }
+        
+        async function testLoadIndices() {
+            output.innerHTML = '';
+            log('Testing loadIndices() function...');
+            
+            try {
+                const response = await fetch('/api/indices');
+                if (response.ok) {
+                    availableIndices = await response.json();
+                    log(`Successfully loaded ${availableIndices.length} indices`, 'success');
+                    renderIndicesSelect();
+                    log('Called renderIndicesSelect()', 'success');
+                } else {
+                    log('Failed to load indices', 'error');
+                    document.getElementById('indicesSelect').innerHTML = '<option value="">Error loading indices</option>';
+                }
+            } catch (error) {
+                log(`Error loading indices: ${error.message}`, 'error');
+                document.getElementById('indicesSelect').innerHTML = '<option value="">Error loading indices</option>';
+            }
+        }
+        
+        function renderIndicesSelect() {
+            const select = document.getElementById('indicesSelect');
+            
+            log(`renderIndicesSelect called, availableIndices.length = ${availableIndices.length}`);
+            
+            if (availableIndices.length === 0) {
+                select.innerHTML = '<option value="">No indices found</option>';
+                log('No indices found', 'error');
+                return;
+            }
+            
+            select.innerHTML = '';
+            availableIndices.forEach(index => {
+                const option = document.createElement('option');
+                option.value = index.name;
+                const docCount = index.documentCount ? index.documentCount.toLocaleString() : '0';
+                const size = index.sizeFormatted || '0 B';
+                option.textContent = `${index.name} (${docCount} docs, ${size})`;
+                select.appendChild(option);
+                log(`Added option: ${index.name}`, 'success');
+            });
+            
+            log(`Select now has ${select.options.length} options`, 'success');
+        }
+        
+        function checkDOM() {
+            output.innerHTML = '';
+            log('Checking DOM elements...');
+            
+            const select = document.getElementById('indicesSelect');
+            log(`Select element found: ${!!select}`, select ? 'success' : 'error');
+            
+            if (select) {
+                log(`Select innerHTML: ${select.innerHTML.substring(0, 200)}`);
+                log(`Select children count: ${select.children.length}`);
+                log(`Select options count: ${select.options.length}`);
+            }
+            
+            log(`availableIndices length: ${availableIndices.length}`);
+            log(`availableIndices: ${JSON.stringify(availableIndices, null, 2)}`);
+        }
+        
+        // Auto-load on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('DOMContentLoaded event fired');
+            testLoadIndices();
+        });
+    </script>
+</body>
+</html>
