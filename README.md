@@ -1,6 +1,7 @@
 # Little Log Peep
 
-![Little Log Peep Logo](log-search-service/logo/LLP_Logo.png)
+![LLP_Logo.png](log-search-service/src/main/resources/static/ui/LLP_Logo.png)
+
 
 **A powerful local log search and analysis tool built with Java, Lucene, and Spring Boot.**
 
