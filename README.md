@@ -42,6 +42,14 @@ Search supports a "pipe" mechanism that lets you chain together multiple operati
 ![img_1.png](doc_images/search_page.png)
 ![img_1.png](doc_images/search_page.png)
 
+You can pipe results into charts such:
+
+![img.png](doc_images/chart.png)
+
+![img_1.png](doc_images/bar_chart.png)
+
+![img_2.png](doc_images/pie_chart.png)
+
 ## Export Options
 
 results can be exported to CSV, JSON, or PDF.  The CSV export supports exporting only a subset of the fields in the search results.  The JSON export supports exporting only a subset of the fields in the search results, and includes a link to the full log entry in the JSON object.  The PDF export supports exporting only a subset of the fields in the search results.  Also can be exported to a local database.
