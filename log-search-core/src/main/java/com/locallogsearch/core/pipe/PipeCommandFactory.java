@@ -1,10 +1,12 @@
 package com.locallogsearch.core.pipe;
 
 import com.locallogsearch.core.pipe.commands.ChartCommand;
+import com.locallogsearch.core.pipe.commands.ExportCommand;
 import com.locallogsearch.core.pipe.commands.StatsCommand;
 import com.locallogsearch.core.pipe.commands.TimeChartCommand;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -22,6 +24,8 @@ public class PipeCommandFactory {
                 return createChartCommand(spec);
             case "timechart":
                 return createTimeChartCommand(spec);
+            case "export":
+                return createExportCommand(spec);
             default:
                 throw new IllegalArgumentException("Unknown pipe command: " + command);
         }
@@ -106,5 +110,38 @@ public class PipeCommandFactory {
         }
         
         return new TimeChartCommand(span, aggregations, splitByField);
+    }
+    
+    private static ExportCommand createExportCommand(PipeQueryParser.PipeCommandSpec spec) {
+        // Parse: export table=mytable fields=user,level sample=1000 append=true
+        String tableName = spec.getParam("table", null);
+        if (tableName == null || tableName.isEmpty()) {
+            throw new IllegalArgumentException("Export command requires 'table' parameter");
+        }
+        
+        // Parse fields (comma-separated)
+        String fieldsParam = spec.getParam("fields", null);
+        List<String> fields = null;
+        if (fieldsParam != null && !fieldsParam.isEmpty()) {
+            fields = Arrays.asList(fieldsParam.split(","));
+            // Trim whitespace from field names
+            fields = fields.stream().map(String::trim).toList();
+        }
+        
+        // Parse sample size
+        Integer sampleSize = null;
+        String sampleParam = spec.getParam("sample", null);
+        if (sampleParam != null && !sampleParam.isEmpty()) {
+            try {
+                sampleSize = Integer.parseInt(sampleParam);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid sample size: " + sampleParam);
+            }
+        }
+        
+        // Parse append flag
+        boolean append = Boolean.parseBoolean(spec.getParam("append", "true"));
+        
+        return new ExportCommand(tableName, fields, sampleSize, append);
     }
 }

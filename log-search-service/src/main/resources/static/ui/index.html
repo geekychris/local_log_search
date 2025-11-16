@@ -661,6 +661,7 @@
             <a href="#" class="nav-link active" data-page="search">Search</a>
             <a href="#" class="nav-link" data-page="examples">Query Examples</a>
             <a href="/ui/sources.html" class="nav-link">📁 Log Sources</a>
+            <a href="/ui/sql.html" class="nav-link">🗄️ SQL Query</a>
         </div>
     </div>
     
@@ -751,6 +752,7 @@
                                 <button id="exportCsv" style="background: #27ae60; font-size: 0.875rem; padding: 0.5rem 1rem;">CSV</button>
                                 <button id="exportJson" style="background: #2980b9; font-size: 0.875rem; padding: 0.5rem 1rem;">JSON</button>
                                 <button id="exportPdf" style="background: #c0392b; font-size: 0.875rem; padding: 0.5rem 1rem;" disabled>PDF (Charts Only)</button>
+                                <button id="exportDatabase" style="background: #8e44ad; font-size: 0.875rem; padding: 0.5rem 1rem;">🗄️ Database</button>
                             </div>
                         </div>
                         <div class="sort-controls">
@@ -932,6 +934,24 @@
                     <div class="example-description">Compare ERROR vs WARN trends over time</div>
                 </div>
                 
+                <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #2c3e50;">🗄️ Pipe Commands - Database Export</h3>
+                <div class="example-query" data-query="level:ERROR | export table=error_logs">
+                    <div class="example-query-text">level:ERROR | export table=error_logs</div>
+                    <div class="example-description">Export all error logs to database table</div>
+                </div>
+                <div class="example-query" data-query="level:ERROR | export table=error_sample sample=1000">
+                    <div class="example-query-text">level:ERROR | export table=error_sample sample=1000</div>
+                    <div class="example-description">Export first 1000 error logs to database</div>
+                </div>
+                <div class="example-query" data-query="status:slow | export table=slow_ops fields=timestamp,operation,duration,user">
+                    <div class="example-query-text">status:slow | export table=slow_ops fields=timestamp,operation,duration,user</div>
+                    <div class="example-description">Export specific fields of slow operations to database</div>
+                </div>
+                <div class="example-query" data-query="user:admin | export table=admin_activity append=true">
+                    <div class="example-query-text">user:admin | export table=admin_activity append=true</div>
+                    <div class="example-description">Append admin activity to existing table</div>
+                </div>
+                
                 <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #2c3e50;">💡 Pipe Command Tips</h3>
                 <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
                     <p style="margin: 0 0 0.5rem 0; font-weight: bold; color: #2c3e50;">Aggregation Functions:</p>
@@ -956,6 +976,14 @@
                         <li><code>type=pie</code> - Pie chart</li>
                         <li><code>type=line</code> - Line chart</li>
                     </ul>
+                    <p style="margin: 1rem 0 0.5rem 0; font-weight: bold; color: #2c3e50;">Database Export Parameters:</p>
+                    <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
+                        <li><code>table=name</code> - Table name (required)</li>
+                        <li><code>fields=col1,col2</code> - Specific columns to export (optional, default: all)</li>
+                        <li><code>sample=N</code> - Export only N rows (optional, default: all)</li>
+                        <li><code>append=true|false</code> - Append or replace (optional, default: true)</li>
+                    </ul>
+                    <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 0.875rem;">💡 View exported data at <a href="/h2-console" target="_blank" style="color: #3498db;">H2 Console</a> (JDBC URL: jdbc:h2:file:~/.local_log_search/database/logdb)</p>
                 </div>
             </div>
         </div>
@@ -2502,6 +2530,7 @@
         document.getElementById('exportCsv').addEventListener('click', () => exportToCsv());
         document.getElementById('exportJson').addEventListener('click', () => exportToJson());
         document.getElementById('exportPdf').addEventListener('click', () => exportToPdf());
+        document.getElementById('exportDatabase').addEventListener('click', () => exportToDatabase());
         
         function exportToCsv() {
             if (!currentExportData) return;
@@ -2576,6 +2605,73 @@
             }
             
             doc.save('search-results.pdf');
+        }
+        
+        async function exportToDatabase() {
+            if (!currentExportData || currentResultType !== 'LOGS') {
+                alert('Database export is only available for log results');
+                return;
+            }
+            
+            // Prompt for table name
+            const tableName = prompt('Enter table name for export:', 'search_export_' + Date.now());
+            if (!tableName) return;
+            
+            // Prompt for sample size (optional)
+            const sampleInput = prompt('Export all rows or specify sample size (leave empty for all):', '');
+            const sampleSize = sampleInput ? parseInt(sampleInput) : null;
+            
+            if (sampleInput && (isNaN(sampleSize) || sampleSize <= 0)) {
+                alert('Invalid sample size');
+                return;
+            }
+            
+            try {
+                const indices = document.getElementById('indices').value.split(',').map(s => s.trim()).filter(s => s);
+                const query = document.getElementById('query').value;
+                
+                const requestBody = {
+                    indices: indices,
+                    query: query,
+                    tableName: tableName,
+                    sampleSize: sampleSize,
+                    append: false
+                };
+                
+                // Add timestamp filters if present
+                if (currentTimeRange.from) {
+                    requestBody.timestampFrom = new Date(currentTimeRange.from).getTime();
+                }
+                if (currentTimeRange.to) {
+                    requestBody.timestampTo = new Date(currentTimeRange.to).getTime();
+                }
+                
+                const messageEl = document.getElementById('message');
+                messageEl.innerHTML = '<div class="loading">Exporting to database...</div>';
+                
+                const response = await fetch('/api/export/results', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Export failed');
+                }
+                
+                const result = await response.json();
+                messageEl.innerHTML = `<div class="success">✓ Exported ${result.rowsExported} rows to table "${result.tableName}"</div>`;
+                
+                // Show link to H2 console
+                alert(`Export successful!\n\nTable: ${result.tableName}\nRows exported: ${result.rowsExported}\nTotal rows in table: ${result.totalRows}\n\nView in H2 Console:\nhttp://localhost:8080/h2-console\n\nQuery:\nSELECT * FROM exported_rows WHERE table_name = '${result.tableName}';`);
+                
+            } catch (error) {
+                const messageEl = document.getElementById('message');
+                messageEl.innerHTML = `<div class="error">Export error: ${error.message}</div>`;
+            }
         }
         
         function downloadFile(content, filename, mimeType) {

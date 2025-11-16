@@ -13,7 +13,8 @@ public abstract class PipeResult {
         LOGS,      // Raw log entries
         TABLE,     // Tabular data
         CHART,     // Chart data
-        TIMECHART  // Time-series chart data
+        TIMECHART, // Time-series chart data
+        EXPORT     // Export to database
     }
     
     private final ResultType type;
@@ -141,6 +142,28 @@ public abstract class PipeResult {
         
         public int getSourceHits() {
             return sourceHits;
+        }
+    }
+    
+    /**
+     * Result containing export metadata and data to be exported
+     */
+    public static class ExportResult extends PipeResult {
+        private final List<SearchResult> results;
+        private final Map<String, Object> metadata;
+        
+        public ExportResult(List<SearchResult> results, Map<String, Object> metadata) {
+            super(ResultType.EXPORT);
+            this.results = results;
+            this.metadata = metadata;
+        }
+        
+        public List<SearchResult> getResults() {
+            return results;
+        }
+        
+        public Map<String, Object> getMetadata() {
+            return metadata;
         }
     }
 }

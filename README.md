@@ -249,7 +249,7 @@ The search uses Lucene query syntax with Splunk-style pipe commands for aggregat
 
 ### Pipe Commands (Splunk-style)
 
-Pipe commands process search results for aggregations, charts, and tables.
+Pipe commands process search results for aggregations, charts, tables, and exports.
 
 #### Stats Command
 
@@ -311,6 +311,24 @@ level:ERROR | timechart span=30m count by user
 **Split By Field:**
 - Use `by field` to create separate series per field value
 - Useful for comparing trends across different categories
+
+#### Export Command
+
+Export search results to database tables for later analysis:
+
+```
+level:ERROR | export table=error_logs
+level:ERROR | export table=error_sample fields=timestamp,user,operation sample=1000
+status:slow | export table=slow_ops fields=timestamp,operation,duration
+```
+
+**Parameters:**
+- `table=name` - Table name (required)
+- `fields=col1,col2,...` - Columns to export (optional, default: all)
+- `sample=N` - Maximum rows to export (optional, default: all)
+- `append=true|false` - Append or replace table (optional, default: true)
+
+See [DATABASE_EXPORT.md](DATABASE_EXPORT.md) for complete documentation.
 
 #### Combining Pipes
 
@@ -592,13 +610,13 @@ local_log_search/
 
 ## Future Enhancements
 
-- **Aggregations**: Count, sum, avg over fields and time windows
 - **Dashboards**: Visual charts and graphs
 - **Alerting**: Trigger actions on query matches
 - **Log Rotation**: Handle rotated log files
 - **Multi-line Logs**: Support for stack traces
 - **Authentication**: Basic auth for REST API and UI
-- **Export**: Export search results to CSV/JSON
+- **Additional Exports**: Export to CSV/JSON/PDF files
+- **Query Exported Data**: Join exported tables with live search results
 
 ## License
 
