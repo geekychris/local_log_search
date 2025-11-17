@@ -13,16 +13,18 @@ The old implementation would return: `[10, 5, 8, 3]` (wrong order!)
 The correct merged order should be: `[10, 8, 5, 3]`
 
 ## Solution
-Implemented a **selection tree** approach that properly merges sorted streams:
+Implemented a **heap-based selection tree** using `PriorityQueue` that properly merges sorted streams:
 
-1. **PeekableIterator**: Wraps each iterator to allow peeking at the next element without consuming it
+1. **PeekableIterator**: Wraps each iterator with eager peeking
+   - Eagerly reads and buffers one element on construction
    - Only buffers one element per iterator (O(n) space where n = number of iterators)
    - Maintains streaming behavior - no bulk materialization
 
-2. **Selection on each next()**: 
-   - Compares the peeked next element from each iterator
-   - Selects the best element according to the comparator
-   - Consumes only that element and advances only that iterator
+2. **Priority Queue (Min-Heap)**: 
+   - Maintains iterators ordered by their peeked element
+   - `next()` extracts the best iterator in O(log n) time
+   - After consuming an element, re-inserts the iterator in O(log n) time
+   - Much more efficient than O(n) linear scan per element
 
 3. **Configurable Comparator**:
    - `buildComparator()` creates the appropriate comparator based on sort criteria
@@ -33,8 +35,9 @@ Implemented a **selection tree** approach that properly merges sorted streams:
 
 ### MultiIndexIterator.java
 - Added `Comparator<SearchResult>` parameter
-- Implemented `PeekableIterator` inner class for one-element lookahead
-- Changed merging logic from sequential chaining to selection tree
+- Implemented `PeekableIterator` inner class with eager peeking
+- Changed merging logic from sequential chaining to heap-based selection tree
+- Uses `PriorityQueue` for O(log n) selection instead of O(n) linear scan
 - Maintains O(n) space complexity (only n peeked elements)
 
 ### SearchService.java
@@ -55,6 +58,7 @@ All tests pass, confirming proper merge behavior.
 
 ## Performance
 - **Space**: O(n) where n = number of indices (only one peeked element per iterator)
-- **Time per element**: O(n) to find best among n iterators
+- **Time per element**: O(log n) using heap-based selection tree
+- **Heap operations**: poll() and offer() are both O(log n)
 - **Streaming**: True streaming - no bulk materialization required
 - **Memory efficient**: Only buffers what's needed for correct ordering

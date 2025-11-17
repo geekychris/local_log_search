@@ -28,15 +28,16 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.PriorityQueue;
 
 /**
- * Iterator that merges multiple sorted iterators using a selection tree approach.
+ * Iterator that merges multiple sorted iterators using a priority queue (heap-based selection tree).
  * Only peeks at one element ahead per iterator (O(n) space where n is number of iterators).
- * Each call to next() selects the best element among the peeked values.
+ * Each call to next() selects the best element in O(log n) time.
  */
 public class MultiIndexIterator implements Iterator<SearchResult> {
     
-    private final PeekableIterator[] iterators;
+    private final PriorityQueue<PeekableIterator> heap;
     private final Comparator<SearchResult> comparator;
     
     /**
@@ -45,11 +46,17 @@ public class MultiIndexIterator implements Iterator<SearchResult> {
      */
     public MultiIndexIterator(List<Iterator<SearchResult>> indexIterators, Comparator<SearchResult> comparator) {
         this.comparator = comparator;
-        this.iterators = new PeekableIterator[indexIterators.size()];
         
-        // Wrap each iterator in a peekable wrapper
-        for (int i = 0; i < indexIterators.size(); i++) {
-            this.iterators[i] = new PeekableIterator(indexIterators.get(i));
+        // Priority queue orders iterators by their next element
+        this.heap = new PriorityQueue<>(
+            Comparator.comparing(PeekableIterator::peek, comparator)
+        );
+        
+        // Initialize heap with all non-empty iterators
+        for (Iterator<SearchResult> iterator : indexIterators) {
+            if (iterator.hasNext()) {
+                heap.offer(new PeekableIterator(iterator));
+            }
         }
     }
     
@@ -62,13 +69,7 @@ public class MultiIndexIterator implements Iterator<SearchResult> {
     
     @Override
     public boolean hasNext() {
-        // Check if any iterator has a next element
-        for (PeekableIterator iter : iterators) {
-            if (iter.hasNext()) {
-                return true;
-            }
-        }
-        return false;
+        return !heap.isEmpty();
     }
     
     @Override
@@ -77,57 +78,44 @@ public class MultiIndexIterator implements Iterator<SearchResult> {
             throw new NoSuchElementException();
         }
         
-        // Selection tree: find the iterator with the best next element
-        int bestIndex = -1;
-        SearchResult bestResult = null;
+        // Get iterator with best next element (O(log n))
+        PeekableIterator best = heap.poll();
+        SearchResult result = best.next();
         
-        for (int i = 0; i < iterators.length; i++) {
-            if (iterators[i].hasNext()) {
-                SearchResult candidate = iterators[i].peek();
-                if (bestResult == null || comparator.compare(candidate, bestResult) < 0) {
-                    bestResult = candidate;
-                    bestIndex = i;
-                }
-            }
+        // If iterator still has elements, re-insert into heap (O(log n))
+        if (best.hasNext()) {
+            heap.offer(best);
         }
         
-        // Consume the best element from its iterator
-        return iterators[bestIndex].next();
+        return result;
     }
     
     /**
-     * Wrapper that allows peeking at the next element without consuming it.
+     * Wrapper that eagerly peeks at the next element for heap ordering.
      * Only buffers one element at a time.
      */
     private static class PeekableIterator {
         private final Iterator<SearchResult> iterator;
         private SearchResult peeked;
-        private boolean hasPeeked;
         
         PeekableIterator(Iterator<SearchResult> iterator) {
             this.iterator = iterator;
-            this.hasPeeked = false;
+            // Eagerly peek first element for heap ordering
+            this.peeked = iterator.next();
         }
         
         boolean hasNext() {
-            return hasPeeked || iterator.hasNext();
+            return peeked != null;
         }
         
         SearchResult peek() {
-            if (!hasPeeked) {
-                peeked = iterator.next();
-                hasPeeked = true;
-            }
             return peeked;
         }
         
         SearchResult next() {
-            if (!hasPeeked) {
-                return iterator.next();
-            }
             SearchResult result = peeked;
-            peeked = null;
-            hasPeeked = false;
+            // Advance to next element if available
+            peeked = iterator.hasNext() ? iterator.next() : null;
             return result;
         }
     }
