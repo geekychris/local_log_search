@@ -63,6 +63,14 @@ public class ChartCommand implements PipeCommand {
         return statsResult;
     }
     
+    /**
+     * Execute chart command on pre-computed table result.
+     * This allows chaining: stats | filter | chart
+     */
+    public PipeResult executeOnTable(PipeResult.TableResult tableResult) {
+        return convertToChart(tableResult);
+    }
+    
     private PipeResult convertToChart(PipeResult.TableResult tableResult) {
         List<String> labels = new ArrayList<>();
         Map<String, List<Number>> series = new LinkedHashMap<>();

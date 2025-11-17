@@ -913,6 +913,54 @@
                     <div class="example-description">Count distinct users per operation</div>
                 </div>
                 
+                <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #2c3e50;">🔍 Pipe Commands - Filter</h3>
+                <div class="example-query" data-query="* | filter duration > 100">
+                    <div class="example-query-text">* | filter duration > 100</div>
+                    <div class="example-description">Filter logs where duration is greater than 100</div>
+                </div>
+                <div class="example-query" data-query="* | stats count by level | filter count > 50">
+                    <div class="example-query-text">* | stats count by level | filter count > 50</div>
+                    <div class="example-description">Aggregate by level, then filter for counts over 50</div>
+                </div>
+                <div class="example-query" data-query='* | filter message regex "error|exception|timeout"'>
+                    <div class="example-query-text">* | filter message regex "error|exception|timeout"</div>
+                    <div class="example-description">Filter messages matching regex pattern</div>
+                </div>
+                <div class="example-query" data-query='* | filter user regex "^(alice|bob|charlie)$"'>
+                    <div class="example-query-text">* | filter user regex "^(alice|bob|charlie)$"</div>
+                    <div class="example-description">Filter for specific users using regex</div>
+                </div>
+                <div class="example-query" data-query="status:slow | filter duration > 500 | stats avg(duration) by user | filter avg(duration) > 1000">
+                    <div class="example-query-text">status:slow | filter duration > 500 | stats avg(duration) by user | filter avg(duration) > 1000</div>
+                    <div class="example-description">Multi-stage: filter logs, aggregate, filter results</div>
+                </div>
+                
+                <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #2c3e50;">🔧 Pipe Commands - Transform</h3>
+                <div class="example-query" data-query="* | transform rename user as username">
+                    <div class="example-query-text">* | transform rename user as username</div>
+                    <div class="example-description">Rename the 'user' field to 'username'</div>
+                </div>
+                <div class="example-query" data-query='* | transform extract message regex "duration=([0-9]+)" as duration_ms'>
+                    <div class="example-query-text">* | transform extract message regex "duration=([0-9]+)" as duration_ms</div>
+                    <div class="example-description">Extract duration value from message using regex group</div>
+                </div>
+                <div class="example-query" data-query='* | transform replace message regex "\\d{3}-\\d{2}-\\d{4}" with "XXX-XX-XXXX"'>
+                    <div class="example-query-text">* | transform replace message regex "\d{3}-\d{2}-\d{4}" with "XXX-XX-XXXX"</div>
+                    <div class="example-description">Redact SSN patterns from messages</div>
+                </div>
+                <div class="example-query" data-query='* | transform merge user,operation as user_op separator="_"'>
+                    <div class="example-query-text">* | transform merge user,operation as user_op separator="_"</div>
+                    <div class="example-description">Combine user and operation fields with underscore</div>
+                </div>
+                <div class="example-query" data-query="* | transform eval duration_sec = duration / 1000">
+                    <div class="example-query-text">* | transform eval duration_sec = duration / 1000</div>
+                    <div class="example-description">Convert duration from ms to seconds</div>
+                </div>
+                <div class="example-query" data-query='* | transform extract url regex "host=([^&]+)" as hostname | filter hostname regex "prod.*" | stats count by hostname'>
+                    <div class="example-query-text">* | transform extract url regex "host=([^&]+)" as hostname | filter hostname regex "prod.*" | stats count by hostname</div>
+                    <div class="example-description">Extract hostnames, filter for production, aggregate</div>
+                </div>
+                
                 <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem; color: #2c3e50;">📈 Pipe Commands - Charts</h3>
                 <div class="example-query" data-query="level:ERROR | chart count by user">
                     <div class="example-query-text">level:ERROR | chart count by user</div>
@@ -986,6 +1034,23 @@
                         <li><code>type=bar</code> - Bar chart (default)</li>
                         <li><code>type=pie</code> - Pie chart</li>
                         <li><code>type=line</code> - Line chart</li>
+                    </ul>
+                    <p style="margin: 1rem 0 0.5rem 0; font-weight: bold; color: #2c3e50;">Filter Operators:</p>
+                    <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
+                        <li><code>=</code> or <code>==</code> - Equals</li>
+                        <li><code>!=</code> - Not equals</li>
+                        <li><code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code> - Numeric comparisons</li>
+                        <li><code>regex</code> or <code>match</code> - Regex pattern match</li>
+                        <li><code>contains</code>, <code>startswith</code>, <code>endswith</code> - String operations</li>
+                    </ul>
+                    <p style="margin: 1rem 0 0.5rem 0; font-weight: bold; color: #2c3e50;">Transform Operations:</p>
+                    <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
+                        <li><code>rename field as newname</code> - Rename a field</li>
+                        <li><code>extract field regex "pattern" as newfield</code> - Extract using regex</li>
+                        <li><code>replace field regex "pattern" with "text"</code> - Replace text</li>
+                        <li><code>merge field1,field2 as newfield separator="sep"</code> - Combine fields</li>
+                        <li><code>eval newfield = expression</code> - Calculate new field</li>
+                        <li><code>remove field</code> - Remove a field</li>
                     </ul>
                     <p style="margin: 1rem 0 0.5rem 0; font-weight: bold; color: #2c3e50;">Database Export Parameters:</p>
                     <ul style="margin: 0; padding-left: 1.5rem; color: #666;">
@@ -2341,6 +2406,17 @@
                             ? result.score.toFixed(2) 
                             : '-';
                         
+                        // Build fields display for all fields (including transformed)
+                        let fieldsHtml = '';
+                        if (result.fields && Object.keys(result.fields).length > 0) {
+                            const fieldTags = Object.entries(result.fields)
+                                .map(([key, value]) => 
+                                    `<span class="field-tag" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">${key}=${value}</span>`
+                                )
+                                .join(' ');
+                            fieldsHtml = `<div class="result-fields">${fieldTags}</div>`;
+                        }
+                        
                         resultDiv.innerHTML = `
                             <div class="result-meta">
                                 <strong>Time:</strong> ${timestampHtml} | 
@@ -2348,6 +2424,7 @@
                                 <strong>Score:</strong> ${scoreDisplay}
                             </div>
                             <div class="result-text">${processedText}</div>
+                            ${fieldsHtml}
                         `;
                         
                         resultsEl.appendChild(resultDiv);
@@ -2355,6 +2432,14 @@
                     
                     // Add click handlers to inline field tags
                     document.querySelectorAll('.field-tag-inline').forEach(tag => {
+                        tag.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            addConstraint(tag.dataset.field, tag.dataset.value);
+                        });
+                    });
+                    
+                    // Add click handlers to field tags (including transformed fields)
+                    document.querySelectorAll('.field-tag').forEach(tag => {
                         tag.addEventListener('click', (e) => {
                             e.preventDefault();
                             addConstraint(tag.dataset.field, tag.dataset.value);

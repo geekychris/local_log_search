@@ -119,7 +119,7 @@ public class StatsCommand implements PipeCommand {
             Map<String, Object> row = new LinkedHashMap<>();
             
             // Add group-by fields
-            String[] keyParts = entry.getKey().split("\\\\|", -1);
+            String[] keyParts = entry.getKey().split("\u0000", -1); // Split by null character
             for (int i = 0; i < groupByFields.size() && i < keyParts.length; i++) {
                 row.put(groupByFields.get(i), keyParts[i]);
             }
@@ -152,7 +152,7 @@ public class StatsCommand implements PipeCommand {
     private String getGroupKey(SearchResult result) {
         StringBuilder key = new StringBuilder();
         for (String field : groupByFields) {
-            if (key.length() > 0) key.append("|");
+            if (key.length() > 0) key.append("\u0000"); // Use null character as delimiter
             String value = result.getFields().getOrDefault(field, "");
             key.append(value);
         }

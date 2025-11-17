@@ -387,7 +387,19 @@ Results show facet counts for each bucket, allowing you to quickly identify dist
 
 ### Pipe Commands
 
-Chain operations to process search results:
+Chain operations to process search results. Supports multi-stage pipelines with 3+ commands!
+
+**📘 [Complete Pipeline Guide](docs/PIPELINE_GUIDE.md)** - See detailed documentation for multi-stage pipelines including `filter`, `stats`, `chart`, and more.
+
+#### Quick Examples
+
+```bash
+# Multi-stage: query → stats → filter → chart
+* | stats count by user | filter count > 100 | chart type=pie count by user
+
+# Filter logs, aggregate, filter again, visualize
+status:slow | filter duration > 500 | stats avg(duration) by user | filter avg(duration) > 1000 | chart type=bar avg(duration) by user
+```
 
 #### Stats Command
 
@@ -408,6 +420,27 @@ status:slow | stats min(duration) max(duration) avg(duration) by user
 - `min(field)` - Minimum value
 - `max(field)` - Maximum value
 - `dc(field)` - Distinct count
+
+#### Filter Command
+
+Filter logs or table results based on conditions:
+
+```
+# Filter logs before aggregation
+status:slow | filter duration > 100 | stats count by user
+
+# Filter aggregated results
+* | stats count by level | filter count > 50
+
+# Multiple filters in pipeline
+* | stats count avg(duration) by user | filter count > 10 | filter avg(duration) > 500
+```
+
+**Operators:**
+- `=` or `==` - Equals
+- `!=` - Not equals  
+- `>`, `>=`, `<`, `<=` - Numeric comparisons
+- `contains`, `startswith`, `endswith` - String matching
 
 #### Chart Command
 

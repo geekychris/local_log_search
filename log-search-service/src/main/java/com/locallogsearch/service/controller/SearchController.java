@@ -191,7 +191,8 @@ public class SearchController {
     
     public static class ApiSearchResponse {
         private List<SearchResult> results;
-        private int totalHits;
+        private int totalHits;  // Original query hits
+        private Integer filteredHits;  // Hits after filtering (null if no filter used)
         private int page;
         private int pageSize;
         private int totalPages;
@@ -205,17 +206,29 @@ public class SearchController {
             // Check if this is a pipe result
             if (response.getPipeResult() != null) {
                 this.pipeResult = response.getPipeResult();
-                // For pipe results, initialize other fields as empty
-                this.results = new java.util.ArrayList<>();
-                this.totalHits = 0;
-                this.page = 0;
-                this.pageSize = 0;
-                this.totalPages = 0;
-                this.facets = new java.util.HashMap<>();
+                // For LOGS pipe results, keep the results populated
+                if (response.getResultType() == PipeResult.ResultType.LOGS) {
+                    this.results = response.getResults();
+                    this.totalHits = response.getTotalHits();
+                    this.filteredHits = response.getFilteredHits();
+                    this.page = response.getPage();
+                    this.pageSize = response.getPageSize();
+                    this.totalPages = response.getTotalPages();
+                    this.facets = response.getFacets();
+                } else {
+                    // For TABLE/CHART results, initialize regular fields as empty
+                    this.results = new java.util.ArrayList<>();
+                    this.totalHits = 0;
+                    this.page = 0;
+                    this.pageSize = 0;
+                    this.totalPages = 0;
+                    this.facets = new java.util.HashMap<>();
+                }
             } else {
                 // Regular log results
                 this.results = response.getResults();
                 this.totalHits = response.getTotalHits();
+                this.filteredHits = null;  // No filtering for regular queries
                 this.page = response.getPage();
                 this.pageSize = response.getPageSize();
                 this.totalPages = response.getTotalPages();
@@ -286,6 +299,14 @@ public class SearchController {
         
         public void setPipeResult(Object pipeResult) {
             this.pipeResult = pipeResult;
+        }
+        
+        public Integer getFilteredHits() {
+            return filteredHits;
+        }
+        
+        public void setFilteredHits(Integer filteredHits) {
+            this.filteredHits = filteredHits;
         }
     }
 }

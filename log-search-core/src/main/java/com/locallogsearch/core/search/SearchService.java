@@ -716,19 +716,18 @@ public class SearchService {
         Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators, comparator);
         PipeResult pipeResult = null;
         
+        // Execute pipe commands in sequence, allowing result type transformations
         for (PipeCommandSpec spec : parsedQuery.getPipeCommands()) {
             try {
                 PipeCommand command = PipeCommandFactory.createCommand(spec);
                 
-                // Execute command with iterator
-                pipeResult = command.execute(resultIterator, totalHitsAcrossIndices);
-                
-                // For chaining, if the result contains logs, use those for next command
-                if (pipeResult instanceof PipeResult.LogsResult) {
-                    resultIterator = ((PipeResult.LogsResult) pipeResult).getResults().iterator();
+                // Execute based on current state
+                if (pipeResult == null) {
+                    // First command: execute on iterator
+                    pipeResult = command.execute(resultIterator, totalHitsAcrossIndices);
                 } else {
-                    // Can't pipe from non-logs result
-                    break;
+                    // Subsequent commands: handle based on result type and command type
+                    pipeResult = executeChainedCommand(command, pipeResult, totalHitsAcrossIndices);
                 }
             } catch (Exception e) {
                 log.error("Error executing pipe command: {}", spec.getCommand(), e);
@@ -744,7 +743,55 @@ public class SearchService {
         }
         
         // Return appropriate response based on result type
-        return new SearchResponse(pipeResult);
+        SearchResponse response = new SearchResponse(pipeResult);
+        // Set the original query hits (before any filtering)
+        response.setTotalHits(totalHitsAcrossIndices);
+        return response;
+    }
+    
+    /**
+     * Execute a chained pipe command on a previous result.
+     * Handles transformations between different result types:
+     * - LogsResult -> StatsCommand -> TableResult
+     * - TableResult -> FilterCommand -> TableResult
+     * - TableResult -> ChartCommand -> ChartResult
+     */
+    private PipeResult executeChainedCommand(PipeCommand command, PipeResult inputResult, int totalHits) {
+        String commandName = command.getName();
+        
+        // Handle filter command (can work on both logs and tables)
+        if (command instanceof com.locallogsearch.core.pipe.commands.FilterCommand) {
+            com.locallogsearch.core.pipe.commands.FilterCommand filterCmd = 
+                (com.locallogsearch.core.pipe.commands.FilterCommand) command;
+            return filterCmd.executeOnResult(inputResult);
+        }
+        
+        // Handle transform command (can work on both logs and tables)
+        if (command instanceof com.locallogsearch.core.pipe.commands.TransformCommand) {
+            com.locallogsearch.core.pipe.commands.TransformCommand transformCmd = 
+                (com.locallogsearch.core.pipe.commands.TransformCommand) command;
+            return transformCmd.executeOnResult(inputResult);
+        }
+        
+        // Handle chart command on table results
+        if (command instanceof com.locallogsearch.core.pipe.commands.ChartCommand && 
+            inputResult instanceof PipeResult.TableResult) {
+            com.locallogsearch.core.pipe.commands.ChartCommand chartCmd = 
+                (com.locallogsearch.core.pipe.commands.ChartCommand) command;
+            return chartCmd.executeOnTable((PipeResult.TableResult) inputResult);
+        }
+        
+        // Handle commands that require logs as input
+        if (inputResult instanceof PipeResult.LogsResult) {
+            PipeResult.LogsResult logsResult = (PipeResult.LogsResult) inputResult;
+            Iterator<SearchResult> iterator = logsResult.getResults().iterator();
+            return command.execute(iterator, totalHits);
+        }
+        
+        // Can't chain this combination
+        throw new IllegalStateException(
+            String.format("Cannot chain %s command after %s result", 
+                commandName, inputResult.getType()));
     }
     
     public void close() throws IOException {

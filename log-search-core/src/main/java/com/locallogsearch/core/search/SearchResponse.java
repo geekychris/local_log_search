@@ -32,7 +32,8 @@ import java.util.Map;
 
 public class SearchResponse {
     private List<SearchResult> results;
-    private int totalHits;
+    private int totalHits;  // Original query hits before filtering
+    private int filteredHits; // Hits after filter pipe commands (if filter was used)
     private int page;
     private int pageSize;
     private Map<String, Map<String, Integer>> facets;
@@ -64,11 +65,23 @@ public class SearchResponse {
     public SearchResponse(PipeResult pipeResult) {
         this.pipeResult = pipeResult;
         this.resultType = pipeResult.getType();
-        this.results = new ArrayList<>();
-        this.totalHits = 0;
-        this.page = 0;
-        this.pageSize = 0;
         this.facets = new HashMap<>();
+        
+        // If the result is logs, populate the results list
+        if (pipeResult instanceof PipeResult.LogsResult) {
+            PipeResult.LogsResult logsResult = (PipeResult.LogsResult) pipeResult;
+            this.results = logsResult.getResults();
+            this.filteredHits = this.results.size();
+            this.totalHits = this.results.size(); // Will be overridden by searchWithPipes if needed
+            this.page = 0;
+            this.pageSize = this.results.size();
+        } else {
+            this.results = new ArrayList<>();
+            this.totalHits = 0;
+            this.filteredHits = 0;
+            this.page = 0;
+            this.pageSize = 0;
+        }
     }
     
     public List<SearchResult> getResults() {
@@ -121,6 +134,14 @@ public class SearchResponse {
     
     public void setFacetSampleSize(Integer facetSampleSize) {
         this.facetSampleSize = facetSampleSize;
+    }
+    
+    public int getFilteredHits() {
+        return filteredHits;
+    }
+    
+    public void setFilteredHits(int filteredHits) {
+        this.filteredHits = filteredHits;
     }
     
     public PipeResult.ResultType getResultType() {

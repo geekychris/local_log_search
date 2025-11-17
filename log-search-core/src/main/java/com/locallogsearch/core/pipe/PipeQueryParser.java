@@ -166,8 +166,8 @@ public class PipeQueryParser {
         for (int i = 1; i < tokens.length; i++) {
             String token = tokens[i];
             
-            // Check if it's a key=value parameter
-            if (token.contains("=")) {
+            // Check if it's a key=value parameter (but not an operator like ==, !=, >=, <=)
+            if (token.contains("=") && !isOperator(token)) {
                 String[] kv = token.split("=", 2);
                 params.put(kv[0], kv[1]);
             } else {
@@ -176,6 +176,15 @@ public class PipeQueryParser {
         }
         
         return new PipeCommandSpec(command, params, args);
+    }
+    
+    /**
+     * Check if token is an operator (not a parameter)
+     */
+    private static boolean isOperator(String token) {
+        return token.equals("==") || token.equals("!=") || 
+               token.equals(">=") || token.equals("<=") ||
+               token.equals(">") || token.equals("<") || token.equals("=");
     }
     
     /**
