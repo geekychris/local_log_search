@@ -1,18 +1,18 @@
 {
   "47b1b254-5507-46b3-8bd1-5c1e759db6a0" : {
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
-    "filePointer" : 833681,
-    "lastModifiedTime" : 1763365440950,
-    "fileSize" : 833681,
-    "fileKey" : "1763086720000:833065",
-    "lastCheckpointTime" : 1763365441733
+    "filePointer" : 1029557,
+    "lastModifiedTime" : 1763365959360,
+    "fileSize" : 1029557,
+    "fileKey" : "1763086720000:1029247",
+    "lastCheckpointTime" : 1763365960463
   },
   "c74d80fa-3ad7-493b-b171-59901f83f626" : {
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
-    "filePointer" : 834477,
-    "lastModifiedTime" : 1763365442736,
-    "fileSize" : 834477,
-    "fileKey" : "1763086720000:833861",
-    "lastCheckpointTime" : 1763365443513
+    "filePointer" : 1026277,
+    "lastModifiedTime" : 1763365949911,
+    "fileSize" : 1026277,
+    "fileKey" : "1763086720000:1025657",
+    "lastCheckpointTime" : 1763365950773
   }
 }

@@ -131,8 +131,9 @@ public class SearchService {
             indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName));
         }
         
-        // Chain all index iterators together
-        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators);
+        // Merge all index iterators together with proper sort order
+        Comparator<SearchResult> comparator = buildComparator(request);
+        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators, comparator);
         
         List<SearchResult> pageResults;
         
@@ -571,6 +572,47 @@ public class SearchService {
     }
     
     /**
+     * Build a Comparator for merging sorted iterators.
+     * This must match the sort order used by Lucene.
+     */
+    private Comparator<SearchResult> buildComparator(SearchRequest request) {
+        if (request.getSortField() == null || request.getSortField().isEmpty()) {
+            // Default: sort by score descending
+            return (a, b) -> Float.compare(b.getScore(), a.getScore());
+        }
+        
+        String sortField = request.getSortField();
+        boolean desc = request.isSortDescending();
+        
+        if ("score".equals(sortField)) {
+            return desc ? 
+                (a, b) -> Float.compare(b.getScore(), a.getScore()) :
+                (a, b) -> Float.compare(a.getScore(), b.getScore());
+        } else if ("timestamp".equals(sortField)) {
+            return (a, b) -> {
+                Instant ta = a.getTimestamp();
+                Instant tb = b.getTimestamp();
+                if (ta == null && tb == null) return 0;
+                if (ta == null) return desc ? 1 : -1;
+                if (tb == null) return desc ? -1 : 1;
+                int cmp = ta.compareTo(tb);
+                return desc ? -cmp : cmp;
+            };
+        } else {
+            // Custom field sort
+            return (a, b) -> {
+                String va = a.getFields() != null ? a.getFields().get(sortField) : null;
+                String vb = b.getFields() != null ? b.getFields().get(sortField) : null;
+                if (va == null && vb == null) return 0;
+                if (va == null) return desc ? 1 : -1;
+                if (vb == null) return desc ? -1 : 1;
+                int cmp = va.compareTo(vb);
+                return desc ? -cmp : cmp;
+            };
+        }
+    }
+    
+    /**
      * Build Lucene Sort object from SearchRequest
      * Returns null if sorting should be done in-memory instead of by Lucene
      */
@@ -669,8 +711,9 @@ public class SearchService {
             indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName));
         }
         
-        // Chain all index iterators together
-        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators);
+        // Merge all index iterators together with score-descending order
+        Comparator<SearchResult> comparator = (a, b) -> Float.compare(b.getScore(), a.getScore());
+        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators, comparator);
         PipeResult pipeResult = null;
         
         for (PipeCommandSpec spec : parsedQuery.getPipeCommands()) {
