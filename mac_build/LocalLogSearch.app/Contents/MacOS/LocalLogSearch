@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Get the directory where this script is located
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CONTENTS_DIR="$(dirname "$DIR")"
+JAVA_DIR="${CONTENTS_DIR}/Java"
+RESOURCES_DIR="${CONTENTS_DIR}/Resources"
+
+# Set up logging
+LOG_DIR="${HOME}/.local_log_search/logs"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/app.log"
+
+# Detect Java
+if [ -n "$JAVA_HOME" ]; then
+    JAVA_CMD="${JAVA_HOME}/bin/java"
+elif command -v java &> /dev/null; then
+    JAVA_CMD="java"
+else
+    osascript -e 'display alert "Java Not Found" message "Java 21 or later is required to run LocalLogSearch. Please install Java and try again." as critical'
+    exit 1
+fi
+
+# Verify Java version
+JAVA_VERSION=$("${JAVA_CMD}" -version 2>&1 | awk -F '"' '/version/ {print $2}' | cut -d'.' -f1)
+if [ "$JAVA_VERSION" -lt 21 ]; then
+    osascript -e 'display alert "Java Version Too Old" message "Java 21 or later is required. Found version '"$JAVA_VERSION"'." as critical'
+    exit 1
+fi
+
+# Log startup
+echo "========================================" >> "${LOG_FILE}"
+echo "LocalLogSearch started at $(date)" >> "${LOG_FILE}"
+echo "Java: ${JAVA_CMD}" >> "${LOG_FILE}"
+echo "========================================" >> "${LOG_FILE}"
+
+# Start the service
+cd "${JAVA_DIR}"
+"${JAVA_CMD}" -jar log-search-service.jar >> "${LOG_FILE}" 2>&1 &
+SERVICE_PID=$!
+
+# Save PID for shutdown
+echo $SERVICE_PID > "${HOME}/.local_log_search/service.pid"
+
+# Wait a moment for service to start
+sleep 3
+
+# Open browser to the UI
+open "http://localhost:8080"
+
+# Keep the process running (needed for .app to stay in Dock)
+wait $SERVICE_PID

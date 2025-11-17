@@ -211,6 +211,64 @@ public class SearchService {
         return reader;
     }
     
+    /**
+     * Helper class to hold query and searcher for an index
+     */
+    private static class IndexQueryContext {
+        final IndexSearcher searcher;
+        final Query query;
+        final int totalHits;
+        
+        IndexQueryContext(IndexSearcher searcher, Query query, int totalHits) {
+            this.searcher = searcher;
+            this.query = query;
+            this.totalHits = totalHits;
+        }
+    }
+    
+    /**
+     * Prepare query context for an index without fetching results
+     */
+    private IndexQueryContext prepareQueryContext(String indexName, SearchRequest request) throws IOException, ParseException {
+        Path indexPath = Paths.get(indexConfig.getBaseDirectory(), indexName);
+        
+        if (!Files.exists(indexPath)) {
+            log.warn("Index does not exist: {}", indexName);
+            return null;
+        }
+        
+        IndexReader reader = getOrOpenReader(indexName, indexPath);
+        IndexSearcher searcher = new IndexSearcher(reader);
+        
+        // Parse query
+        String[] fields = {"raw_text"};
+        MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer);
+        parser.setDefaultOperator(QueryParser.Operator.AND);
+        
+        Query query = parser.parse(request.getQuery());
+        
+        // Rewrite range queries to use numeric fields if applicable
+        query = rewriteNumericRangeQueries(query, reader);
+        
+        // Add timestamp range filter if specified
+        if (request.getTimestampFrom() != null || request.getTimestampTo() != null) {
+            long from = request.getTimestampFrom() != null ? request.getTimestampFrom() : 0L;
+            long to = request.getTimestampTo() != null ? request.getTimestampTo() : Long.MAX_VALUE;
+            log.debug("Applying timestamp filter: from={} to={}", from, to);
+            Query timestampQuery = LongPoint.newRangeQuery("timestamp", from, to);
+            
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(query, BooleanClause.Occur.MUST);
+            builder.add(timestampQuery, BooleanClause.Occur.FILTER);
+            query = builder.build();
+        }
+        
+        // Get total hit count
+        int totalHits = searcher.count(query);
+        
+        return new IndexQueryContext(searcher, query, totalHits);
+    }
+    
     private SearchResult documentToSearchResult(Document doc, String indexName, float score) {
         SearchResult result = new SearchResult();
         result.setIndexName(indexName);
@@ -508,36 +566,53 @@ public class SearchService {
         baseRequest.setTimestampTo(request.getTimestampTo());
         log.debug("baseRequest - timestampFrom: {}, timestampTo: {}", baseRequest.getTimestampFrom(), baseRequest.getTimestampTo());
         
-        List<SearchResult> allResults = new ArrayList<>();
+        // Create streaming iterators for each index - don't materialize results into a list
+        List<Iterator<SearchResult>> indexIterators = new ArrayList<>();
         int totalHitsAcrossIndices = 0;
+        
         for (String indexName : request.getIndices()) {
-            SearchResponse indexResponse = searchIndex(indexName, baseRequest);
-            allResults.addAll(indexResponse.getResults());
-            totalHitsAcrossIndices += indexResponse.getTotalHits();
+            IndexQueryContext context = prepareQueryContext(indexName, baseRequest);
+            if (context == null) {
+                continue;
+            }
+            
+            // Execute search to get TopDocs
+            TopDocs topDocs = context.searcher.search(context.query, Integer.MAX_VALUE);
+            totalHitsAcrossIndices += context.totalHits;
+            
+            // Create streaming iterator for this index
+            indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName));
         }
         
-        // Apply pipe commands in sequence
-        PipeResult pipeResult = new PipeResult.LogsResult(allResults);
+        // Chain all index iterators together
+        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators);
+        PipeResult pipeResult = null;
         
         for (PipeCommandSpec spec : parsedQuery.getPipeCommands()) {
             try {
                 PipeCommand command = PipeCommandFactory.createCommand(spec);
                 
-                // Get input for command
-                List<SearchResult> input;
+                // Execute command with iterator
+                pipeResult = command.execute(resultIterator, totalHitsAcrossIndices);
+                
+                // For chaining, if the result contains logs, use those for next command
                 if (pipeResult instanceof PipeResult.LogsResult) {
-                    input = ((PipeResult.LogsResult) pipeResult).getResults();
+                    resultIterator = ((PipeResult.LogsResult) pipeResult).getResults().iterator();
                 } else {
                     // Can't pipe from non-logs result
-                    log.warn("Cannot pipe from {} result type", pipeResult.getType());
                     break;
                 }
-                
-                pipeResult = command.execute(input);
             } catch (Exception e) {
                 log.error("Error executing pipe command: {}", spec.getCommand(), e);
                 throw new RuntimeException("Pipe command error: " + e.getMessage(), e);
             }
+        }
+        
+        // If no pipe commands produced a result, materialize results from iterator
+        if (pipeResult == null) {
+            List<SearchResult> results = new ArrayList<>();
+            resultIterator.forEachRemaining(results::add);
+            pipeResult = new PipeResult.LogsResult(results);
         }
         
         // Return appropriate response based on result type

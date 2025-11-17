@@ -52,24 +52,37 @@ public class TimeChartCommand implements PipeCommand {
     }
     
     @Override
-    public PipeResult execute(List<SearchResult> input) {
+    public PipeResult execute(Iterator<SearchResult> input, int totalHits) {
         long spanMillis = parseSpan(span);
         
-        // Determine time range
+        // Determine time range and group results by time bucket in one pass
         long minTime = Long.MAX_VALUE;
         long maxTime = Long.MIN_VALUE;
         
-        for (SearchResult result : input) {
-            if (result.getTimestamp() != null) {
-                long time = result.getTimestamp().toEpochMilli();
-                minTime = Math.min(minTime, time);
-                maxTime = Math.max(maxTime, time);
-            }
+        // Group results by time bucket and split field - count only to save memory
+        Map<String, Map<Long, Integer>> seriesData = new LinkedHashMap<>();
+        
+        while (input.hasNext()) {
+            SearchResult result = input.next();
+            if (result.getTimestamp() == null) continue;
+            
+            long time = result.getTimestamp().toEpochMilli();
+            minTime = Math.min(minTime, time);
+            maxTime = Math.max(maxTime, time);
+            
+            long bucket = (time / spanMillis) * spanMillis;
+            
+            String seriesKey = splitByField != null && result.getFields().containsKey(splitByField) 
+                ? result.getFields().get(splitByField) 
+                : "count";
+            
+            seriesData.computeIfAbsent(seriesKey, k -> new LinkedHashMap<>())
+                      .merge(bucket, 1, Integer::sum);
         }
         
         if (minTime == Long.MAX_VALUE) {
             // No timestamps found
-            return new PipeResult.TimeChartResult(new ArrayList<>(), new LinkedHashMap<>(), input.size());
+            return new PipeResult.TimeChartResult(new ArrayList<>(), new LinkedHashMap<>(), totalHits);
         }
         
         // Create time buckets - align to span boundaries
@@ -81,24 +94,6 @@ public class TimeChartCommand implements PipeCommand {
             bucketTimes.add(t);
         }
         
-        // Group results by time bucket and split field
-        Map<String, Map<Long, List<SearchResult>>> seriesData = new LinkedHashMap<>();
-        
-        for (SearchResult result : input) {
-            if (result.getTimestamp() == null) continue;
-            
-            long time = result.getTimestamp().toEpochMilli();
-            long bucket = (time / spanMillis) * spanMillis;
-            
-            String seriesKey = splitByField != null && result.getFields().containsKey(splitByField) 
-                ? result.getFields().get(splitByField) 
-                : "count";
-            
-            seriesData.computeIfAbsent(seriesKey, k -> new LinkedHashMap<>())
-                      .computeIfAbsent(bucket, k -> new ArrayList<>())
-                      .add(result);
-        }
-        
         // Build result
         List<String> timestamps = new ArrayList<>();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
@@ -107,19 +102,16 @@ public class TimeChartCommand implements PipeCommand {
         }
         
         Map<String, List<Number>> series = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<Long, List<SearchResult>>> entry : seriesData.entrySet()) {
+        for (Map.Entry<String, Map<Long, Integer>> entry : seriesData.entrySet()) {
             List<Number> counts = new ArrayList<>();
             for (long bucketTime : bucketTimes) {
-                List<SearchResult> bucketResults = entry.getValue().getOrDefault(bucketTime, new ArrayList<>());
-                
-                // Compute aggregation for this bucket
-                int count = bucketResults.size();
+                int count = entry.getValue().getOrDefault(bucketTime, 0);
                 counts.add(count);
             }
             series.put(entry.getKey(), counts);
         }
         
-        return new PipeResult.TimeChartResult(timestamps, series, input.size());
+        return new PipeResult.TimeChartResult(timestamps, series, totalHits);
     }
     
     private long parseSpan(String span) {

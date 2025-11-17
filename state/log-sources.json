@@ -1,0 +1,50 @@
+{
+  "47b1b254-5507-46b3-8bd1-5c1e759db6a0" : {
+    "id" : "47b1b254-5507-46b3-8bd1-5c1e759db6a0",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
+    "indexName" : "s1",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
+  "bbf39bda-2f5b-474e-abfb-f25e6f1224f9" : {
+    "id" : "bbf39bda-2f5b-474e-abfb-f25e6f1224f9",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/access.log",
+    "indexName" : "access-logs",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
+  "5f1319a0-9476-4c1c-9815-b05f89ce6723" : {
+    "id" : "5f1319a0-9476-4c1c-9815-b05f89ce6723",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/error.log",
+    "indexName" : "error-logs",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
+  "c74d80fa-3ad7-493b-b171-59901f83f626" : {
+    "id" : "c74d80fa-3ad7-493b-b171-59901f83f626",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
+    "indexName" : "service-index",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
+  "1cec9c0d-5485-4ee5-83f5-d512c866b058" : {
+    "id" : "1cec9c0d-5485-4ee5-83f5-d512c866b058",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/application.log",
+    "indexName" : "app-logs",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
+  "399f9a2a-e115-49ca-9171-c5c8f9069968" : {
+    "id" : "399f9a2a-e115-49ca-9171-c5c8f9069968",
+    "filePath" : "generator.log",
+    "indexName" : "generator-index",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "error-logs" : {
+    "indexName" : "error-logs",
+    "policy" : "TIME_BASED",
+    "retentionPeriod" : 86400.000000000,
+    "maxDocuments" : null,
+    "autoTruncateEnabled" : false,
+    "truncationInterval" : 86400.000000000
+  },
+  "generator-log" : {
+    "indexName" : "generator-log",
+    "policy" : "VOLUME_BASED",
+    "retentionPeriod" : null,
+    "maxDocuments" : 1000000,
+    "autoTruncateEnabled" : true,
+    "truncationInterval" : 3600.000000000
+  },
+  "service-index" : {
+    "indexName" : "service-index",
+    "policy" : "VOLUME_BASED",
+    "retentionPeriod" : null,
+    "maxDocuments" : 100000,
+    "autoTruncateEnabled" : true,
+    "truncationInterval" : 3600.000000000
+  }
+}

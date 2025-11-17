@@ -25,16 +25,23 @@
 package com.locallogsearch.core.pipe;
 
 import com.locallogsearch.core.search.SearchResult;
-import java.util.List;
+import java.util.Iterator;
 
 /**
- * Interface for pipe commands that process search results
+ * Interface for pipe commands that process search results.
+ * Commands receive results as an iterator for memory-efficient streaming processing.
  */
 public interface PipeCommand {
     /**
-     * Process the input results and return transformed output
+     * Process the input results stream and return transformed output.
+     * The iterator is consumed during execution - implementations should
+     * process results one at a time when possible to minimize memory usage.
+     * 
+     * @param input Iterator over search results to process
+     * @param totalHits Total number of hits (for statistics/progress tracking)
+     * @return Processed pipe result
      */
-    PipeResult execute(List<SearchResult> input);
+    PipeResult execute(Iterator<SearchResult> input, int totalHits);
     
     /**
      * Get the command name (e.g., "stats", "chart", "timechart")

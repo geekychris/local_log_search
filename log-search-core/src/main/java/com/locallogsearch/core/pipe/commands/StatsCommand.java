@@ -49,35 +49,64 @@ public class StatsCommand implements PipeCommand {
     }
     
     @Override
-    public PipeResult execute(List<SearchResult> input) {
+    public PipeResult execute(Iterator<SearchResult> input, int totalHits) {
         if (groupByFields.isEmpty()) {
             // No grouping - just compute aggregates over all results
-            return executeSingleRow(input);
+            return executeSingleRow(input, totalHits);
         } else {
             // Group by fields and compute aggregates per group
-            return executeGrouped(input);
+            return executeGrouped(input, totalHits);
         }
     }
     
-    private PipeResult executeSingleRow(List<SearchResult> input) {
+    private PipeResult executeSingleRow(Iterator<SearchResult> input, int totalHits) {
         List<String> columns = new ArrayList<>(aggregations);
         Map<String, Object> row = new HashMap<>();
         
+        // Initialize aggregation accumulators
+        Map<String, AggregationAccumulator> accumulators = new HashMap<>();
         for (String agg : aggregations) {
-            Object value = computeAggregation(agg, input);
+            accumulators.put(agg, new AggregationAccumulator(agg));
+        }
+        
+        // Stream through results once, updating accumulators
+        while (input.hasNext()) {
+            SearchResult result = input.next();
+            for (AggregationAccumulator acc : accumulators.values()) {
+                acc.add(result);
+            }
+        }
+        
+        // Compute final values
+        for (String agg : aggregations) {
+            Object value = accumulators.get(agg).getValue();
             row.put(agg, value);
         }
         
-        return new PipeResult.TableResult(columns, Collections.singletonList(row), input.size());
+        return new PipeResult.TableResult(columns, Collections.singletonList(row), totalHits);
     }
     
-    private PipeResult executeGrouped(List<SearchResult> input) {
-        // Group results by field values
-        Map<String, List<SearchResult>> groups = new LinkedHashMap<>();
+    private PipeResult executeGrouped(Iterator<SearchResult> input, int totalHits) {
+        // Group results by field values, accumulating aggregations
+        Map<String, Map<String, AggregationAccumulator>> groups = new LinkedHashMap<>();
         
-        for (SearchResult result : input) {
+        // Stream through results once, updating group accumulators
+        while (input.hasNext()) {
+            SearchResult result = input.next();
             String groupKey = getGroupKey(result);
-            groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(result);
+            
+            Map<String, AggregationAccumulator> groupAccumulators = groups.get(groupKey);
+            if (groupAccumulators == null) {
+                groupAccumulators = new HashMap<>();
+                for (String agg : aggregations) {
+                    groupAccumulators.put(agg, new AggregationAccumulator(agg));
+                }
+                groups.put(groupKey, groupAccumulators);
+            }
+            
+            for (AggregationAccumulator acc : groupAccumulators.values()) {
+                acc.add(result);
+            }
         }
         
         // Build result table
@@ -86,18 +115,18 @@ public class StatsCommand implements PipeCommand {
         
         List<Map<String, Object>> rows = new ArrayList<>();
         
-        for (Map.Entry<String, List<SearchResult>> entry : groups.entrySet()) {
+        for (Map.Entry<String, Map<String, AggregationAccumulator>> entry : groups.entrySet()) {
             Map<String, Object> row = new LinkedHashMap<>();
             
             // Add group-by fields
-            String[] keyParts = entry.getKey().split("\\|", -1);
+            String[] keyParts = entry.getKey().split("\\\\|", -1);
             for (int i = 0; i < groupByFields.size() && i < keyParts.length; i++) {
                 row.put(groupByFields.get(i), keyParts[i]);
             }
             
             // Add aggregations
             for (String agg : aggregations) {
-                Object value = computeAggregation(agg, entry.getValue());
+                Object value = entry.getValue().get(agg).getValue();
                 row.put(agg, value);
             }
             
@@ -117,7 +146,7 @@ public class StatsCommand implements PipeCommand {
             });
         }
         
-        return new PipeResult.TableResult(columns, rows, input.size());
+        return new PipeResult.TableResult(columns, rows, totalHits);
     }
     
     private String getGroupKey(SearchResult result) {
@@ -130,106 +159,97 @@ public class StatsCommand implements PipeCommand {
         return key.toString();
     }
     
-    private Object computeAggregation(String agg, List<SearchResult> results) {
-        // Parse aggregation function
-        if (agg.equals("count")) {
-            return results.size();
-        } else if (agg.startsWith("avg(") && agg.endsWith(")")) {
-            String field = agg.substring(4, agg.length() - 1);
-            return computeAvg(field, results);
-        } else if (agg.startsWith("sum(") && agg.endsWith(")")) {
-            String field = agg.substring(4, agg.length() - 1);
-            return computeSum(field, results);
-        } else if (agg.startsWith("min(") && agg.endsWith(")")) {
-            String field = agg.substring(4, agg.length() - 1);
-            return computeMin(field, results);
-        } else if (agg.startsWith("max(") && agg.endsWith(")")) {
-            String field = agg.substring(4, agg.length() - 1);
-            return computeMax(field, results);
-        } else if (agg.startsWith("dc(") && agg.endsWith(")")) {
-            String field = agg.substring(3, agg.length() - 1);
-            return computeDistinctCount(field, results);
+    /**
+     * Accumulator for streaming aggregation calculations.
+     * Processes results one at a time without storing them all in memory.
+     */
+    private static class AggregationAccumulator {
+        private final String aggregation;
+        private final String field;
+        private final String function;
+        
+        private long count = 0;
+        private double sum = 0;
+        private double min = Double.MAX_VALUE;
+        private double max = Double.MIN_VALUE;
+        private Set<String> distinctValues;
+        
+        public AggregationAccumulator(String aggregation) {
+            this.aggregation = aggregation;
+            
+            // Parse aggregation function and field
+            if (aggregation.equals("count")) {
+                this.function = "count";
+                this.field = null;
+            } else if (aggregation.startsWith("avg(") && aggregation.endsWith(")")) {
+                this.function = "avg";
+                this.field = aggregation.substring(4, aggregation.length() - 1);
+            } else if (aggregation.startsWith("sum(") && aggregation.endsWith(")")) {
+                this.function = "sum";
+                this.field = aggregation.substring(4, aggregation.length() - 1);
+            } else if (aggregation.startsWith("min(") && aggregation.endsWith(")")) {
+                this.function = "min";
+                this.field = aggregation.substring(4, aggregation.length() - 1);
+            } else if (aggregation.startsWith("max(") && aggregation.endsWith(")")) {
+                this.function = "max";
+                this.field = aggregation.substring(4, aggregation.length() - 1);
+            } else if (aggregation.startsWith("dc(") && aggregation.endsWith(")")) {
+                this.function = "dc";
+                this.field = aggregation.substring(3, aggregation.length() - 1);
+                this.distinctValues = new HashSet<>();
+            } else {
+                this.function = "unknown";
+                this.field = null;
+            }
         }
         
-        return 0;
-    }
-    
-    private double computeAvg(String field, List<SearchResult> results) {
-        double sum = 0;
-        int count = 0;
-        for (SearchResult result : results) {
+        public void add(SearchResult result) {
+            count++;
+            
+            if (field == null) return; // count only
+            
             String value = result.getFields().get(field);
-            if (value != null) {
-                try {
-                    // Try to parse as number, removing units like "ms"
-                    String numStr = value.replaceAll("[^0-9.]", "");
-                    sum += Double.parseDouble(numStr);
-                    count++;
-                } catch (NumberFormatException e) {
-                    // Skip non-numeric values
-                }
+            if (value == null) return;
+            
+            switch (function) {
+                case "avg":
+                case "sum":
+                case "min":
+                case "max":
+                    try {
+                        String numStr = value.replaceAll("[^0-9.\\-]", "");
+                        double numValue = Double.parseDouble(numStr);
+                        sum += numValue;
+                        min = Math.min(min, numValue);
+                        max = Math.max(max, numValue);
+                    } catch (NumberFormatException e) {
+                        // Skip non-numeric
+                    }
+                    break;
+                case "dc":
+                    distinctValues.add(value);
+                    break;
             }
         }
-        return count > 0 ? sum / count : 0;
-    }
-    
-    private double computeSum(String field, List<SearchResult> results) {
-        double sum = 0;
-        for (SearchResult result : results) {
-            String value = result.getFields().get(field);
-            if (value != null) {
-                try {
-                    String numStr = value.replaceAll("[^0-9.]", "");
-                    sum += Double.parseDouble(numStr);
-                } catch (NumberFormatException e) {
-                    // Skip
-                }
+        
+        public Object getValue() {
+            switch (function) {
+                case "count":
+                    return (int) count;
+                case "avg":
+                    return count > 0 ? sum / count : 0.0;
+                case "sum":
+                    return sum;
+                case "min":
+                    return min == Double.MAX_VALUE ? 0.0 : min;
+                case "max":
+                    return max == Double.MIN_VALUE ? 0.0 : max;
+                case "dc":
+                    return distinctValues != null ? distinctValues.size() : 0;
+                default:
+                    return 0;
             }
         }
-        return sum;
-    }
-    
-    private double computeMin(String field, List<SearchResult> results) {
-        double min = Double.MAX_VALUE;
-        for (SearchResult result : results) {
-            String value = result.getFields().get(field);
-            if (value != null) {
-                try {
-                    String numStr = value.replaceAll("[^0-9.]", "");
-                    min = Math.min(min, Double.parseDouble(numStr));
-                } catch (NumberFormatException e) {
-                    // Skip
-                }
-            }
-        }
-        return min == Double.MAX_VALUE ? 0 : min;
-    }
-    
-    private double computeMax(String field, List<SearchResult> results) {
-        double max = Double.MIN_VALUE;
-        for (SearchResult result : results) {
-            String value = result.getFields().get(field);
-            if (value != null) {
-                try {
-                    String numStr = value.replaceAll("[^0-9.]", "");
-                    max = Math.max(max, Double.parseDouble(numStr));
-                } catch (NumberFormatException e) {
-                    // Skip
-                }
-            }
-        }
-        return max == Double.MIN_VALUE ? 0 : max;
-    }
-    
-    private int computeDistinctCount(String field, List<SearchResult> results) {
-        Set<String> distinctValues = new HashSet<>();
-        for (SearchResult result : results) {
-            String value = result.getFields().get(field);
-            if (value != null) {
-                distinctValues.add(value);
-            }
-        }
-        return distinctValues.size();
     }
     
     @Override

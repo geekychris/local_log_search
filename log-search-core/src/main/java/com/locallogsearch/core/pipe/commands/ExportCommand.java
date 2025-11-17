@@ -51,11 +51,13 @@ public class ExportCommand implements PipeCommand {
     }
     
     @Override
-    public PipeResult execute(List<SearchResult> input) {
-        // Apply sampling if requested
-        List<SearchResult> results = input;
-        if (sampleSize != null && sampleSize > 0 && sampleSize < input.size()) {
-            results = input.subList(0, sampleSize);
+    public PipeResult execute(Iterator<SearchResult> input, int totalHits) {
+        // Collect results with optional sampling
+        List<SearchResult> results = new ArrayList<>();
+        int limit = sampleSize != null && sampleSize > 0 ? sampleSize : Integer.MAX_VALUE;
+        
+        while (input.hasNext() && results.size() < limit) {
+            results.add(input.next());
         }
         
         // Create export metadata
@@ -64,7 +66,7 @@ public class ExportCommand implements PipeCommand {
         metadata.put("fields", fields);
         metadata.put("sampleSize", sampleSize);
         metadata.put("append", append);
-        metadata.put("totalResults", input.size());
+        metadata.put("totalResults", totalHits);
         metadata.put("exportedResults", results.size());
         
         // Return as an export result

@@ -49,10 +49,10 @@ public class ChartCommand implements PipeCommand {
     }
     
     @Override
-    public PipeResult execute(List<SearchResult> input) {
+    public PipeResult execute(Iterator<SearchResult> input, int totalHits) {
         // First compute stats
         StatsCommand statsCmd = new StatsCommand(aggregations, groupByFields);
-        PipeResult statsResult = statsCmd.execute(input);
+        PipeResult statsResult = statsCmd.execute(input, totalHits);
         
         // Convert table result to chart result
         if (statsResult instanceof PipeResult.TableResult) {
