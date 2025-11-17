@@ -779,6 +779,95 @@ java -jar test-log-generator/target/test-log-generator-1.0-SNAPSHOT-jar-with-dep
 
 ### Helper Scripts
 
+#### Start Test Generator with Options
+
+The `start-test-generator.sh` script provides command-line options to control log generation and automatically configure the search service.
+
+```bash
+# Basic usage - generate unlimited logs
+./start-test-generator.sh
+
+# Generate specific number of logs
+./start-test-generator.sh --max-logs 10000
+
+# Generate logs slowly (1 per second)
+./start-test-generator.sh --delay 1000
+
+# Generate historical logs from 30 days ago
+./start-test-generator.sh --days-back 30 --max-logs 50000
+
+# Generate from specific date
+./start-test-generator.sh --start-date 2025-01-01T00:00:00Z --max-logs 5000
+
+# Generate logs and auto-configure search service to tail them
+./start-test-generator.sh --config-search
+
+# Generate logs with fresh indices (truncate before starting)
+./start-test-generator.sh --config-search --truncate-index
+
+# Combined: historical logs with search configured
+./start-test-generator.sh --days-back 7 --max-logs 20000 --config-search
+
+# Configure only a specific log file to be tailed
+./start-test-generator.sh --config-search --log-file application.log
+
+# Configure specific log file with truncation
+./start-test-generator.sh --config-search --truncate-index --log-file error.log
+```
+
+**Options:**
+- `--max-logs <N>` - Generate N logs then stop (default: unlimited)
+- `--delay <ms>` - Delay in milliseconds between logs (default: 0)
+- `--start-date <ISO>` - Start with specific date (ISO format: 2025-01-01T00:00:00Z)
+- `--days-back <N>` - Start N days ago and increment timestamps
+- `--log-file <path>` - Tail specific log file with --config-search (default: all 3 log files)
+- `--config-search` - Configure search service to tail generated log files
+- `--truncate-index` - Truncate existing indices before configuring search (requires --config-search)
+- `--help` - Show help message
+
+**What --config-search does:**
+1. Checks if the search service is running on port 8080
+2. Optionally truncates existing indices (with --truncate-index)
+3. Configures the service to tail log files:
+   - **Without --log-file:** All three logs (application.log, access.log, error.log)
+   - **With --log-file:** Only the specified log file
+4. Creates indices:
+   - `application.log` → index: `application`
+   - `access.log` → index: `access`
+   - `error.log` → index: `error`
+5. Uses keyvalue parser for all log files
+6. Skips sources that are already configured
+
+**Common Use Cases:**
+
+```bash
+# Quick start: generate and configure all logs
+./start-test-generator.sh --config-search
+
+# Start fresh: truncate all indices and configure all logs
+./start-test-generator.sh --config-search --truncate-index
+
+# Focus on errors only: just tail error.log with clean index
+./start-test-generator.sh --config-search --truncate-index --log-file error.log
+
+# Generate historical error logs for testing
+./start-test-generator.sh --days-back 30 --max-logs 10000 --config-search --log-file error.log
+
+# Slow real-time generation for demo purposes (all logs)
+./start-test-generator.sh --delay 500 --config-search
+
+# Generate specific amount with all logs configured
+./start-test-generator.sh --max-logs 50000 --config-search
+
+# Configure only application.log for focused testing
+./start-test-generator.sh --config-search --log-file application.log
+
+# Generate access logs from specific date
+./start-test-generator.sh --start-date 2025-01-01T00:00:00Z --max-logs 5000 --config-search --log-file access.log
+```
+
+#### Other Helper Scripts
+
 ```bash
 # Generate historical test data
 ./generate-historical-logs.sh

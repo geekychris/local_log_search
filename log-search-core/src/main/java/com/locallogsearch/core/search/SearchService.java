@@ -82,30 +82,90 @@ public class SearchService {
             return searchWithPipes(request, parsedQuery);
         }
         
-        // Regular search
-        List<SearchResult> allResults = new ArrayList<>();
+        // Build Lucene Sort from request - push sorting to Lucene when possible
+        Sort luceneSort = buildLuceneSort(request);
+        boolean needsInMemorySort = (luceneSort == null); // Custom fields need in-memory sorting
+        
+        // Create streaming iterators for each index
+        List<Iterator<SearchResult>> indexIterators = new ArrayList<>();
         int totalHits = 0;
         Map<String, Map<String, Integer>> allFacets = new HashMap<>();
         
         for (String indexName : request.getIndices()) {
-            SearchResponse indexResponse = searchIndex(indexName, request);
-            allResults.addAll(indexResponse.getResults());
-            totalHits += indexResponse.getTotalHits();
-            
-            // Merge facets
-            if (request.isIncludeFacets()) {
-                mergeFacets(allFacets, indexResponse.getFacets());
+            IndexQueryContext context = prepareQueryContext(indexName, request);
+            if (context == null) {
+                continue;
             }
+            
+            totalHits += context.totalHits;
+            
+            // Skip this index if it has no results
+            if (context.totalHits == 0) {
+                log.debug("Skipping index {} with 0 hits", indexName);
+                continue;
+            }
+            
+            // Calculate facets if requested
+            if (request.isIncludeFacets()) {
+                FacetResultData facetResult = calculateFacetsFromAllHits(context.searcher, context.query, context.totalHits, request.getFacetBuckets());
+                mergeFacets(allFacets, facetResult.facets);
+            }
+            
+            // Execute search with Lucene sort when available
+            // For custom field sorts or multi-index, need to fetch more for in-memory sorting
+            int docsToFetch;
+            if (needsInMemorySort) {
+                // Need all results for in-memory sort
+                docsToFetch = Math.min(context.totalHits, 10000); // Cap at 10k for memory safety
+            } else {
+                // Lucene can sort, fetch just enough for pagination
+                docsToFetch = (request.getPage() + 1) * request.getPageSize() * request.getIndices().size();
+                docsToFetch = Math.min(docsToFetch, context.totalHits);
+            }
+            
+            TopDocs topDocs = luceneSort != null ? 
+                context.searcher.search(context.query, docsToFetch, luceneSort) : 
+                context.searcher.search(context.query, docsToFetch);
+            
+            // Create streaming iterator for this index
+            indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName));
         }
         
-        // Sort results
-        sortResults(allResults, request);
+        // Chain all index iterators together
+        Iterator<SearchResult> resultIterator = new MultiIndexIterator(indexIterators);
         
-        // Apply pagination
-        int start = request.getPage() * request.getPageSize();
-        int end = Math.min(start + request.getPageSize(), allResults.size());
-        List<SearchResult> pageResults = start < allResults.size() ? 
-            allResults.subList(start, end) : new ArrayList<>();
+        List<SearchResult> pageResults;
+        
+        if (needsInMemorySort) {
+            // Collect all results and sort in-memory
+            List<SearchResult> allResults = new ArrayList<>();
+            resultIterator.forEachRemaining(allResults::add);
+            
+            // Sort in memory
+            sortResults(allResults, request);
+            
+            // Apply pagination
+            int start = request.getPage() * request.getPageSize();
+            int end = Math.min(start + request.getPageSize(), allResults.size());
+            pageResults = start < allResults.size() ? 
+                allResults.subList(start, end) : new ArrayList<>();
+        } else {
+            // Lucene already sorted, just paginate through iterator
+            int start = request.getPage() * request.getPageSize();
+            int skipped = 0;
+            while (skipped < start && resultIterator.hasNext()) {
+                resultIterator.next();
+                skipped++;
+            }
+            
+            // Collect page results
+            pageResults = new ArrayList<>();
+            int collected = 0;
+            while (collected < request.getPageSize() && resultIterator.hasNext()) {
+                pageResults.add(resultIterator.next());
+                collected++;
+            }
+        }
         
         return new SearchResponse(pageResults, totalHits, request.getPage(), request.getPageSize(), allFacets);
     }
@@ -507,6 +567,31 @@ public class SearchService {
             for (Map.Entry<String, Integer> valueEntry : fieldEntry.getValue().entrySet()) {
                 targetCounts.merge(valueEntry.getKey(), valueEntry.getValue(), Integer::sum);
             }
+        }
+    }
+    
+    /**
+     * Build Lucene Sort object from SearchRequest
+     * Returns null if sorting should be done in-memory instead of by Lucene
+     */
+    private Sort buildLuceneSort(SearchRequest request) {
+        if (request.getSortField() == null || request.getSortField().isEmpty()) {
+            // Default: sort by score descending
+            return new Sort(SortField.FIELD_SCORE);
+        }
+        
+        String sortField = request.getSortField();
+        boolean desc = request.isSortDescending();
+        
+        if ("score".equals(sortField)) {
+            return new Sort(new SortField(null, SortField.Type.SCORE, desc));
+        } else if ("timestamp".equals(sortField)) {
+            // Sort by numeric timestamp field
+            return new Sort(new SortField("timestamp", SortField.Type.LONG, desc));
+        } else {
+            // For custom fields, we can't reliably determine if _exact variant exists
+            // Return null to indicate in-memory sorting should be used
+            return null;
         }
     }
     

@@ -2337,11 +2337,15 @@
                             ? `<span class="timestamp-clickable" data-timestamp="${timestampISO}" title="Click to refine search by time">${timestamp}</span>`
                             : timestamp;
                         
+                        const scoreDisplay = (typeof result.score === 'number' && !isNaN(result.score)) 
+                            ? result.score.toFixed(2) 
+                            : '-';
+                        
                         resultDiv.innerHTML = `
                             <div class="result-meta">
                                 <strong>Time:</strong> ${timestampHtml} | 
                                 <strong>Index:</strong> ${result.indexName} | 
-                                <strong>Score:</strong> ${result.score.toFixed(2)}
+                                <strong>Score:</strong> ${scoreDisplay}
                             </div>
                             <div class="result-text">${processedText}</div>
                         `;

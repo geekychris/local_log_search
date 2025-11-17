@@ -1,50 +1,18 @@
 {
   "47b1b254-5507-46b3-8bd1-5c1e759db6a0" : {
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
-    "filePointer" : 132653,
-    "lastModifiedTime" : 1763362432755,
-    "fileSize" : 132653,
-    "fileKey" : "1763086720000:132037",
-    "lastCheckpointTime" : 1763362432894
-  },
-  "5f1319a0-9476-4c1c-9815-b05f89ce6723" : {
-    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/error.log",
-    "filePointer" : 2288151,
-    "lastModifiedTime" : 1763323188683,
-    "fileSize" : 2288151,
-    "fileKey" : "1763107809000:2288151",
-    "lastCheckpointTime" : 1763362214644
-  },
-  "bbf39bda-2f5b-474e-abfb-f25e6f1224f9" : {
-    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/access.log",
-    "filePointer" : 26321481,
-    "lastModifiedTime" : 1763323213054,
-    "fileSize" : 26321481,
-    "fileKey" : "1763107809000:26321481",
-    "lastCheckpointTime" : 1763362214644
+    "filePointer" : 833681,
+    "lastModifiedTime" : 1763365440950,
+    "fileSize" : 833681,
+    "fileKey" : "1763086720000:833065",
+    "lastCheckpointTime" : 1763365441733
   },
   "c74d80fa-3ad7-493b-b171-59901f83f626" : {
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
-    "filePointer" : 132833,
-    "lastModifiedTime" : 1763362432894,
-    "fileSize" : 132833,
-    "fileKey" : "1763086720000:132345",
-    "lastCheckpointTime" : 1763362432894
-  },
-  "1cec9c0d-5485-4ee5-83f5-d512c866b058" : {
-    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/logs/application.log",
-    "filePointer" : 16870813,
-    "lastModifiedTime" : 1763323212558,
-    "fileSize" : 16870813,
-    "fileKey" : "1763107809000:16870813",
-    "lastCheckpointTime" : 1763362214644
-  },
-  "399f9a2a-e115-49ca-9171-c5c8f9069968" : {
-    "filePath" : "generator.log",
-    "filePointer" : 9166121,
-    "lastModifiedTime" : 1763323212558,
-    "fileSize" : 9166121,
-    "fileKey" : "1763107809000:9166121",
-    "lastCheckpointTime" : 1763362214645
+    "filePointer" : 834477,
+    "lastModifiedTime" : 1763365442736,
+    "fileSize" : 834477,
+    "fileKey" : "1763086720000:833861",
+    "lastCheckpointTime" : 1763365443513
   }
 }
