@@ -47,6 +47,9 @@ public class SqlQueryController {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    // Configurable maximum rows to fetch from database (safety limit)
+    private static final int DEFAULT_MAX_ROWS = 10000;
+    
     /**
      * Execute a SQL query and return results
      */
@@ -66,7 +69,9 @@ public class SqlQueryController {
             boolean isSelect = sql.toUpperCase().startsWith("SELECT");
 
             if (isSelect) {
-                return executeSelectQuery(sql);
+                // Use maxRows from request, or default
+                Integer maxRows = request.getMaxRows() != null ? request.getMaxRows() : DEFAULT_MAX_ROWS;
+                return executeSelectQuery(sql, maxRows);
             } else {
                 return executeUpdateQuery(sql);
             }
@@ -237,10 +242,15 @@ public class SqlQueryController {
         return columnList;
     }
 
-    private ResponseEntity<?> executeSelectQuery(String sql) {
+    private ResponseEntity<?> executeSelectQuery(String sql, int maxRows) {
         try (Connection conn = dataSource.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             Statement stmt = conn.createStatement()) {
+            
+            // Set max rows at the Statement level - this is enforced by JDBC driver
+            // and is much safer than fetching all rows into memory
+            stmt.setMaxRows(maxRows);
+            
+            ResultSet rs = stmt.executeQuery(sql);
             
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
@@ -257,6 +267,7 @@ public class SqlQueryController {
             
             // Build rows
             List<Map<String, Object>> rows = new ArrayList<>();
+            int rowCount = 0;
             while (rs.next()) {
                 Map<String, Object> row = new LinkedHashMap<>();
                 for (int i = 1; i <= columnCount; i++) {
@@ -284,12 +295,17 @@ public class SqlQueryController {
                     row.put(columnName, value);
                 }
                 rows.add(row);
+                rowCount++;
             }
+            
+            rs.close();
             
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("columns", columns);
             result.put("rows", rows);
-            result.put("rowCount", rows.size());
+            result.put("rowCount", rowCount);
+            result.put("maxRowsReached", rowCount >= maxRows);
+            result.put("maxRows", maxRows);
             result.put("type", "SELECT");
             
             return ResponseEntity.ok(result);
@@ -350,6 +366,7 @@ public class SqlQueryController {
 
     public static class SqlQueryRequest {
         private String sql;
+        private Integer maxRows;
 
         public String getSql() {
             return sql;
@@ -357,6 +374,14 @@ public class SqlQueryController {
 
         public void setSql(String sql) {
             this.sql = sql;
+        }
+        
+        public Integer getMaxRows() {
+            return maxRows;
+        }
+        
+        public void setMaxRows(Integer maxRows) {
+            this.maxRows = maxRows;
         }
     }
 }

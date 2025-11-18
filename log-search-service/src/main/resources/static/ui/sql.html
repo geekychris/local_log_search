@@ -384,6 +384,232 @@
             font-size: 12px;
             margin-top: 8px;
         }
+
+        /* AI Helper Modal */
+        .ai-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-modal.active {
+            display: flex;
+        }
+
+        .ai-modal-content {
+            background: #252526;
+            border-radius: 8px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .ai-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .ai-modal-header h2 {
+            font-size: 20px;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .ai-modal-close {
+            background: none;
+            border: none;
+            color: #858585;
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-modal-close:hover {
+            color: #ffffff;
+        }
+
+        .ai-modal-body {
+            padding: 20px;
+        }
+
+        .ai-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+
+        .ai-tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #858585;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .ai-tab:hover {
+            color: #d4d4d4;
+        }
+
+        .ai-tab.active {
+            color: #ffffff;
+            border-bottom-color: #007acc;
+        }
+
+        .ai-tab-content {
+            display: none;
+        }
+
+        .ai-tab-content.active {
+            display: block;
+        }
+
+        .ai-input-group {
+            margin-bottom: 20px;
+        }
+
+        .ai-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #cccccc;
+        }
+
+        .ai-input-group textarea {
+            width: 100%;
+            min-height: 100px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .ai-input-group textarea:focus {
+            outline: none;
+            border-color: #007acc;
+        }
+
+        .ai-response {
+            margin-top: 20px;
+        }
+
+        .ai-query-box {
+            background: #2d2d2d;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ai-query-box:hover {
+            background: #343434;
+            border-color: #007acc;
+        }
+
+        .ai-query-text {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            color: #4ec9b0;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .ai-query-explanation {
+            color: #858585;
+            font-size: 13px;
+        }
+
+        .ai-loading {
+            padding: 20px;
+            text-align: center;
+            color: #007acc;
+            font-size: 14px;
+        }
+
+        .ai-error {
+            padding: 15px;
+            background: #5a1d1d;
+            border-left: 4px solid #f48771;
+            border-radius: 4px;
+            color: #f48771;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .ai-raw-response {
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #d4d4d4;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 15px;
+        }
+
+        .example-card {
+            background: #2d2d2d;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .example-card:hover {
+            background: #343434;
+            border-color: #007acc;
+        }
+
+        .example-title {
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .example-prompt {
+            color: #858585;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .example-query {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            color: #4ec9b0;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body>
@@ -431,10 +657,16 @@
                             <label for="queryInput">SQL Query</label>
                             <textarea id="queryInput" placeholder="SELECT * FROM exported_tables;"></textarea>
                         </div>
+                        <div class="form-group">
+                            <label for="maxRowsInput">Max Rows to Fetch (safety limit)</label>
+                            <input type="number" id="maxRowsInput" value="10000" min="1" max="100000" placeholder="10000" style="width: 150px;">
+                            <div style="font-size: 12px; color: #858585; margin-top: 4px;">Limits rows fetched from database (default: 10,000). This prevents browser freezes on large result sets.</div>
+                        </div>
                         <div class="button-group">
                             <button onclick="executeQuery()" id="executeBtn">Execute Query</button>
                             <button class="secondary" onclick="clearQuery()">Clear</button>
                             <button class="secondary" onclick="formatQuery()">Format</button>
+                            <button class="secondary" onclick="showAIHelper()" id="aiHelperBtn">🤖 AI Help</button>
                         </div>
                         <div class="quick-queries">
                             <button class="quick-query-btn" onclick="setQuery('SELECT * FROM exported_tables;')">
@@ -603,27 +835,16 @@
         }
 
         async function executeQuery() {
-            let query = document.getElementById('queryInput').value.trim();
+            const query = document.getElementById('queryInput').value.trim();
             
             if (!query) {
                 showError('Please enter a SQL query');
                 return;
             }
             
-            // Auto-add LIMIT if it's a SELECT without LIMIT, but skip for aggregate queries
-            const upperQuery = query.toUpperCase();
-            const isAggregate = upperQuery.includes('GROUP BY') || 
-                               upperQuery.includes('COUNT(') || 
-                               upperQuery.includes('SUM(') || 
-                               upperQuery.includes('AVG(') || 
-                               upperQuery.includes('MIN(') || 
-                               upperQuery.includes('MAX(');
-            
-            if (upperQuery.startsWith('SELECT') && !upperQuery.includes('LIMIT') && !isAggregate) {
-                const autoLimit = 1000;
-                query = query + ` LIMIT ${autoLimit}`;
-                showWarning(`⚠️ Auto-added LIMIT ${autoLimit} to prevent browser freeze. Add your own LIMIT to override.`);
-            }
+            // Get max rows setting
+            const maxRowsInput = document.getElementById('maxRowsInput');
+            const maxRows = maxRowsInput && maxRowsInput.value ? parseInt(maxRowsInput.value) : 10000;
             
             const executeBtn = document.getElementById('executeBtn');
             executeBtn.disabled = true;
@@ -635,7 +856,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ sql: query })
+                    body: JSON.stringify({ 
+                        sql: query,
+                        maxRows: maxRows
+                    })
                 });
                 
                 if (!response.ok) {
@@ -665,12 +889,15 @@
             if (result.type === 'SELECT') {
                 let warningHtml = '';
                 
-                // Warn about large result sets
-                if (result.rowCount >= 1000) {
-                    warningHtml = '<div style="padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; color: #856404; font-size: 13px; margin-bottom: 15px;">⚠️ Large result set (' + result.rowCount + ' rows). Consider adding WHERE clause or smaller LIMIT.</div>';
+                // Warn if max rows limit was reached
+                if (result.maxRowsReached) {
+                    warningHtml = '<div style="padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; color: #856404; font-size: 13px; margin-bottom: 15px;">⚠️ Result set truncated at ' + result.maxRows + ' rows (safety limit). Add LIMIT clause or increase max rows setting if you need fewer/more results.</div>';
+                } else if (result.rowCount >= 1000) {
+                    warningHtml = '<div style="padding: 12px; background: #e8f4f8; border-left: 4px solid #4ec9b0; border-radius: 4px; color: #2d5a6b; font-size: 13px; margin-bottom: 15px;">ℹ️ Large result set (' + result.rowCount + ' rows displayed).</div>';
                 }
                 
-                resultsMeta.textContent = `${result.rowCount} rows returned`;
+                const rowsText = result.maxRowsReached ? `${result.rowCount} rows (limited to ${result.maxRows})` : `${result.rowCount} rows returned`;
+                resultsMeta.textContent = rowsText;
                 
                 if (result.rowCount === 0) {
                     resultsContent.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div>No results</div></div>';
@@ -873,6 +1100,306 @@
                 showError(`Error inserting data: ${error.message}`);
             }
         }
+    </script>
+
+    <!-- AI Helper Modal -->
+    <div id="aiModal" class="ai-modal">
+        <div class="ai-modal-content">
+            <div class="ai-modal-header">
+                <h2>🤖 SQL AI Helper</h2>
+                <button id="aiModalClose" class="ai-modal-close">&times;</button>
+            </div>
+            <div class="ai-modal-body">
+                <div class="ai-tabs">
+                    <button class="ai-tab active" onclick="switchAITab('ask')">Ask AI</button>
+                    <button class="ai-tab" onclick="switchAITab('examples')">Examples</button>
+                </div>
+
+                <!-- Ask AI Tab -->
+                <div id="askTab" class="ai-tab-content active">
+                    <div class="ai-input-group">
+                        <label for="aiUserRequest">What SQL query do you need?</label>
+                        <textarea id="aiUserRequest" placeholder="Examples:&#10;- Show me the top 10 users with the most records&#10;- Join users table with sessions table and count sessions per user&#10;- Find all records where amount is greater than 100 and group by status"></textarea>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 14px; color: #cccccc; cursor: pointer;">
+                            <input type="checkbox" id="aiIncludeCurrentQuery">
+                            Modify current query (if unchecked, creates new query)
+                        </label>
+                    </div>
+                    <button id="aiAskBtn" style="width: 100%;">Ask AI</button>
+                    <div id="aiResponse"></div>
+                </div>
+
+                <!-- Examples Tab -->
+                <div id="examplesTab" class="ai-tab-content">
+                    <div class="example-grid" id="examplesGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // AI Helper Modal
+        const aiModal = document.getElementById('aiModal');
+        const aiModalClose = document.getElementById('aiModalClose');
+        const aiAskBtn = document.getElementById('aiAskBtn');
+
+        function showAIHelper() {
+            aiModal.classList.add('active');
+        }
+
+        aiModalClose.addEventListener('click', () => {
+            aiModal.classList.remove('active');
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === aiModal) {
+                aiModal.classList.remove('active');
+            }
+        });
+
+        function switchAITab(tabName) {
+            document.querySelectorAll('.ai-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            document.querySelectorAll('.ai-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        aiAskBtn.addEventListener('click', async () => {
+            const userRequest = document.getElementById('aiUserRequest').value.trim();
+            const currentQuery = document.getElementById('queryInput').value.trim();
+            const includeCurrentQuery = document.getElementById('aiIncludeCurrentQuery').checked;
+            const responseDiv = document.getElementById('aiResponse');
+
+            if (!userRequest) {
+                responseDiv.innerHTML = '<div class="ai-error">Please describe what SQL query you need.</div>';
+                return;
+            }
+
+            responseDiv.innerHTML = '<div class="ai-loading">🤖 AI is thinking...</div>';
+
+            try {
+                // Get all tables and their schemas
+                const tablesResponse = await fetch('/api/sql/tables');
+                const tables = await tablesResponse.json();
+
+                // Fetch schemas for all tables
+                const tableSchemas = [];
+                for (const table of tables) {
+                    try {
+                        const schemaResponse = await fetch(`/api/sql/tables/${table.tableName}/schema`);
+                        if (schemaResponse.ok) {
+                            const schema = await schemaResponse.json();
+                            tableSchemas.push(schema);
+                        }
+                    } catch (e) {
+                        console.warn(`Could not fetch schema for ${table.tableName}`, e);
+                    }
+                }
+
+                const response = await fetch('/api/ai/sql-help', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userRequest: userRequest,
+                        currentQuery: includeCurrentQuery ? currentQuery : null,
+                        tableSchemas: tableSchemas
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('AI service unavailable');
+                }
+
+                const data = await response.json();
+
+                // Parse structured response to extract queries
+                const queries = parseAIResponse(data.suggestion);
+
+                if (queries.length > 0) {
+                    let html = '<div class="ai-response">';
+                    queries.forEach((q, index) => {
+                        html += `
+                            <div class="ai-query-box" data-query="${escapeHtml(q.query)}">
+                                <div class="ai-query-text">${escapeHtml(q.query)}</div>
+                                <div class="ai-query-explanation">${escapeHtml(q.explanation)}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    responseDiv.innerHTML = html;
+
+                    // Add click handlers
+                    document.querySelectorAll('.ai-query-box').forEach(box => {
+                        box.addEventListener('click', () => {
+                            const query = box.dataset.query;
+                            document.getElementById('queryInput').value = query;
+                            aiModal.classList.remove('active');
+                        });
+                    });
+                } else {
+                    responseDiv.innerHTML = `
+                        <div class="ai-response">
+                            <div class="ai-raw-response">${escapeHtml(data.suggestion)}</div>
+                            <p style="margin-top: 0.5rem; color: #858585; font-size: 13px;">
+                                Could not parse structured queries. Please copy manually.
+                            </p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                responseDiv.innerHTML = `<div class="ai-error">
+                    ❌ AI service unavailable. Make sure Ollama is running:\n\n
+                    <code>brew install ollama</code>\n
+                    <code>ollama pull llama3.2</code>\n
+                    <code>ollama serve</code>
+                </div>`;
+            }
+        });
+
+        // Parse AI response to extract SQL queries
+        function parseAIResponse(text) {
+            const queries = [];
+
+            // Look for "QUERY:" structured format
+            const lines = text.split('\n');
+            let currentQuery = null;
+            let currentExplanation = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+
+                if (line === 'QUERY:') {
+                    // Save previous query if exists
+                    if (currentQuery) {
+                        queries.push({
+                            query: currentQuery,
+                            explanation: currentExplanation.join(' ').trim()
+                        });
+                    }
+                    // Next lines until blank line or next QUERY: is the query
+                    i++;
+                    let queryLines = [];
+                    while (i < lines.length && lines[i].trim() && lines[i].trim() !== 'QUERY:') {
+                        queryLines.push(lines[i]);
+                        i++;
+                    }
+                    currentQuery = queryLines.join('\n').trim();
+                    currentExplanation = [];
+                    i--; // Back up one since we'll increment in the loop
+                } else if (currentQuery && line && !/^QUERY:/.test(line)) {
+                    currentExplanation.push(line);
+                }
+            }
+
+            // Save last query
+            if (currentQuery) {
+                queries.push({
+                    query: currentQuery,
+                    explanation: currentExplanation.join(' ').trim()
+                });
+            }
+
+            return queries;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load examples on page load
+        const sqlExamples = [
+            {
+                title: 'Basic Select',
+                prompt: 'Show me all records from error_logs table',
+                query: 'SELECT * FROM error_logs LIMIT 100;'
+            },
+            {
+                title: 'Filter by Condition',
+                prompt: 'Show records where status equals ERROR',
+                query: 'SELECT * FROM logs WHERE status = \'ERROR\';'
+            },
+            {
+                title: 'Count Records',
+                prompt: 'Count how many records each user has',
+                query: 'SELECT user, COUNT(*) as count\nFROM logs\nGROUP BY user\nORDER BY count DESC;'
+            },
+            {
+                title: 'Top N Results',
+                prompt: 'Show me the top 10 users with most errors',
+                query: 'SELECT user, COUNT(*) as error_count\nFROM error_logs\nGROUP BY user\nORDER BY error_count DESC\nLIMIT 10;'
+            },
+            {
+                title: 'Aggregation with SUM',
+                prompt: 'Calculate total amount per user',
+                query: 'SELECT user, SUM(amount) as total\nFROM transactions\nGROUP BY user\nORDER BY total DESC;'
+            },
+            {
+                title: 'Average Calculation',
+                prompt: 'Find average duration by operation type',
+                query: 'SELECT operation, AVG(duration) as avg_duration\nFROM operations\nGROUP BY operation;'
+            },
+            {
+                title: 'Inner Join',
+                prompt: 'Join users and sessions tables',
+                query: 'SELECT u.user, s.session_id, s.duration\nFROM users u\nINNER JOIN sessions s ON u.user = s.user;'
+            },
+            {
+                title: 'Left Join with Count',
+                prompt: 'Count sessions per user including users with no sessions',
+                query: 'SELECT u.user, COUNT(s.id) as session_count\nFROM users u\nLEFT JOIN sessions s ON u.user = s.user\nGROUP BY u.user;'
+            },
+            {
+                title: 'Multiple Tables Join',
+                prompt: 'Join three tables: users, orders, and products',
+                query: 'SELECT u.user, o.order_id, p.product_name, o.amount\nFROM users u\nINNER JOIN orders o ON u.user_id = o.user_id\nINNER JOIN products p ON o.product_id = p.product_id;'
+            },
+            {
+                title: 'Date Filtering',
+                prompt: 'Find records from last month',
+                query: 'SELECT * FROM logs\nWHERE timestamp >= \'2024-01-01\'\nAND timestamp < \'2024-02-01\';'
+            },
+            {
+                title: 'Complex Filter',
+                prompt: 'Multiple conditions with AND/OR',
+                query: 'SELECT * FROM logs\nWHERE (level = \'ERROR\' OR level = \'WARN\')\nAND amount > 100\nORDER BY timestamp DESC;'
+            },
+            {
+                title: 'Subquery',
+                prompt: 'Find users who made more than average orders',
+                query: 'SELECT user, COUNT(*) as order_count\nFROM orders\nGROUP BY user\nHAVING COUNT(*) > (SELECT AVG(cnt) FROM (SELECT COUNT(*) as cnt FROM orders GROUP BY user));'
+            }
+        ];
+
+        function loadExamples() {
+            const grid = document.getElementById('examplesGrid');
+            grid.innerHTML = sqlExamples.map(ex => `
+                <div class="example-card" onclick="useExample('${escapeHtml(ex.prompt)}')">
+                    <div class="example-title">${ex.title}</div>
+                    <div class="example-prompt">"${ex.prompt}"</div>
+                    <div class="example-query">${escapeHtml(ex.query)}</div>
+                </div>
+            `).join('');
+        }
+
+        function useExample(prompt) {
+            document.getElementById('aiUserRequest').value = prompt;
+            switchAITab('ask');
+            document.querySelectorAll('.ai-tab')[0].click();
+        }
+
+        // Load examples when page loads
+        loadExamples();
     </script>
 </body>
 </html>

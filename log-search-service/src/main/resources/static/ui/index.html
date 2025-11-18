@@ -895,6 +895,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h2 style="margin: 0;">Results (<span id="totalHits">0</span> hits)</h2>
                             <div style="display: flex; gap: 0.5rem;">
+                                <button class="secondary" id="summarizeBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">🤖 Summarize</button>
                                 <button class="secondary" id="exportBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">📥 Export</button>
                                 <button class="share" id="shareBtn">📋 Share Query</button>
                             </div>
@@ -2506,6 +2507,10 @@
                     messageEl.innerHTML = `<div class="success">Found ${data.totalHits} results</div>`;
                     document.getElementById('totalHits').textContent = data.totalHits;
                     
+                    // Store results for summarization
+                    lastSearchResults = data.results;
+                    lastSearchQuery = query;
+                    
                     // Render facets from server
                     if (data.facets) {
                         renderFacets(data.facets, data.facetSampleSize, data.totalHits);
@@ -3411,6 +3416,161 @@
             const div = document.createElement('div');
             div.textContent = text == null ? '' : String(text);
             return div.innerHTML;
+        }
+    </script>
+
+    <!-- Summarization Modal -->
+    <div id="summarizationModal" class="share-modal" style="display: none;">
+        <div class="share-modal-content" style="max-width: 900px;">
+            <span class="share-modal-close" id="summarizationModalClose">&times;</span>
+            <h2>🤖 AI Log Summarization</h2>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label for="summaryType" style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: #2c3e50;">Analysis Type</label>
+                <select id="summaryType" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+                    <option value="OVERVIEW">General Overview - High-level analysis of all logs</option>
+                    <option value="ERRORS">Error Analysis - Focus on errors and warnings</option>
+                    <option value="PATTERNS">Pattern Detection - Identify recurring patterns</option>
+                    <option value="TIMELINE">Timeline Summary - Chronological event summary</option>
+                    <option value="SECURITY">Security Analysis - Security-focused review</option>
+                    <option value="PERFORMANCE">Performance Analysis - Performance metrics</option>
+                </select>
+            </div>
+
+            <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; border-left: 4px solid #ffc107; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.875rem; color: #856404;">
+                    <strong>⚠️ Note:</strong> Summarization analyzes up to 500 log entries from your current search results.
+                    Large result sets will be truncated for analysis.
+                </div>
+            </div>
+            
+            <button id="generateSummaryBtn" style="width: 100%; padding: 1rem; font-size: 1rem; margin-bottom: 1.5rem;">
+                Generate Summary
+            </button>
+            
+            <div id="summaryOutput" style="display: none;">
+                <h3 style="margin-bottom: 1rem;">Summary</h3>
+                <div id="summaryContent" style="background: #f8f9fa; padding: 1.5rem; border-radius: 4px; border: 1px solid #dee2e6; max-height: 500px; overflow-y: auto; line-height: 1.6;">
+                </div>
+            </div>
+            
+            <div id="summaryLoading" style="display: none; text-align: center; padding: 2rem;">
+                <div style="font-size: 1.2rem; color: #3498db; margin-bottom: 1rem;">🤖 AI is analyzing your logs...</div>
+                <div style="color: #666; font-size: 0.875rem;">This may take 10-30 seconds depending on the number of logs.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Summarization functionality
+        const summarizationModal = document.getElementById('summarizationModal');
+        const summarizeBtn = document.getElementById('summarizeBtn');
+        const summarizationModalClose = document.getElementById('summarizationModalClose');
+        const generateSummaryBtn = document.getElementById('generateSummaryBtn');
+        
+        // Store last search results
+        let lastSearchResults = null;
+        let lastSearchQuery = '';
+        
+        summarizeBtn.addEventListener('click', () => {
+            if (!lastSearchResults || lastSearchResults.length === 0) {
+                alert('No search results to summarize. Please run a search first.');
+                return;
+            }
+            summarizationModal.style.display = 'flex';
+            document.getElementById('summaryOutput').style.display = 'none';
+        });
+        
+        summarizationModalClose.addEventListener('click', () => {
+            summarizationModal.style.display = 'none';
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === summarizationModal) {
+                summarizationModal.style.display = 'none';
+            }
+        });
+        
+        generateSummaryBtn.addEventListener('click', async () => {
+            const summaryType = document.getElementById('summaryType').value;
+            const summaryOutput = document.getElementById('summaryOutput');
+            const summaryContent = document.getElementById('summaryContent');
+            const summaryLoading = document.getElementById('summaryLoading');
+            
+            if (!lastSearchResults || lastSearchResults.length === 0) {
+                alert('No search results available.');
+                return;
+            }
+            
+            // Show loading
+            summaryOutput.style.display = 'none';
+            summaryLoading.style.display = 'block';
+            generateSummaryBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/summarize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        results: lastSearchResults,
+                        summaryType: summaryType,
+                        query: lastSearchQuery
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate summary');
+                }
+                
+                const data = await response.json();
+                
+                // Convert markdown to HTML (basic conversion)
+                let htmlContent = convertMarkdownToHtml(data.summary);
+                
+                summaryContent.innerHTML = htmlContent;
+                summaryLoading.style.display = 'none';
+                summaryOutput.style.display = 'block';
+                
+            } catch (error) {
+                summaryLoading.style.display = 'none';
+                summaryContent.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 1rem; border-radius: 4px; border-left: 4px solid #f5c6cb;">
+                        <strong>Error:</strong> ${escapeHtml(error.message)}<br><br>
+                        Make sure Ollama is running:<br>
+                        <code style="background: #fff; padding: 0.25rem 0.5rem; border-radius: 2px;">ollama serve</code>
+                    </div>
+                `;
+                summaryOutput.style.display = 'block';
+            } finally {
+                generateSummaryBtn.disabled = false;
+            }
+        });
+        
+        // Simple markdown to HTML converter
+        function convertMarkdownToHtml(markdown) {
+            let html = escapeHtml(markdown);
+            
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h4 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: #2c3e50;">$1</h4>');
+            html = html.replace(/^## (.*$)/gim, '<h3 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: #2c3e50;">$1</h3>');
+            html = html.replace(/^# (.*$)/gim, '<h2 style="margin-top: 1.5rem; margin-bottom: 0.75rem; color: #2c3e50;">$1</h2>');
+            
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Bullet points
+            html = html.replace(/^[\s]*[-*] (.*)$/gim, '<li style="margin-left: 1.5rem;">$1</li>');
+            
+            // Wrap lists
+            html = html.replace(/(<li[^>]*>.*<\/li>)/s, '<ul style="margin: 0.5rem 0; padding-left: 1rem;">$1</ul>');
+            
+            // Line breaks
+            html = html.replace(/\n\n/g, '<br><br>');
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
         }
     </script>
 </body>
