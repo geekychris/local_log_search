@@ -610,9 +610,16 @@
                 return;
             }
             
-            // Auto-add LIMIT if it's a SELECT without LIMIT
+            // Auto-add LIMIT if it's a SELECT without LIMIT, but skip for aggregate queries
             const upperQuery = query.toUpperCase();
-            if (upperQuery.startsWith('SELECT') && !upperQuery.includes('LIMIT')) {
+            const isAggregate = upperQuery.includes('GROUP BY') || 
+                               upperQuery.includes('COUNT(') || 
+                               upperQuery.includes('SUM(') || 
+                               upperQuery.includes('AVG(') || 
+                               upperQuery.includes('MIN(') || 
+                               upperQuery.includes('MAX(');
+            
+            if (upperQuery.startsWith('SELECT') && !upperQuery.includes('LIMIT') && !isAggregate) {
                 const autoLimit = 1000;
                 query = query + ` LIMIT ${autoLimit}`;
                 showWarning(`⚠️ Auto-added LIMIT ${autoLimit} to prevent browser freeze. Add your own LIMIT to override.`);
