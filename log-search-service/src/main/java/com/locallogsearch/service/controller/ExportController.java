@@ -136,6 +136,33 @@ public class ExportController {
     }
     
     /**
+     * Export stats table results to database
+     */
+    @PostMapping("/stats")
+    public ResponseEntity<?> exportStatsTable(@RequestBody StatsExportRequest request) {
+        try {
+            log.info("Exporting stats table: table='{}', columns={}", 
+                    request.getTableName(), request.getColumns());
+            
+            DirectTableExportService.DirectExportResult result = directExportService.exportStatsTable(
+                request.getTableName(),
+                request.getColumns(),
+                request.getRows(),
+                request.getFields(),
+                request.getSampleSize(),
+                request.getSourceQuery(),
+                request.isAppend()
+            );
+            
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            log.error("Stats table export error", e);
+            return ResponseEntity.internalServerError().body("Export error: " + e.getMessage());
+        }
+    }
+    
+    /**
      * Export search results directly to a real SQL table
      * Creates actual tables with proper columns that can be queried with SQL
      */
@@ -317,6 +344,77 @@ public class ExportController {
         
         public void setTimestampTo(Long timestampTo) {
             this.timestampTo = timestampTo;
+        }
+    }
+    
+    /**
+     * Request to export stats table results
+     */
+    public static class StatsExportRequest {
+        private String tableName;
+        private List<String> columns;
+        private List<Map<String, Object>> rows;
+        private List<String> fields;
+        private Integer sampleSize;
+        private String sourceQuery;
+        private boolean append = false;
+        
+        // Getters and Setters
+        
+        public String getTableName() {
+            return tableName;
+        }
+        
+        public void setTableName(String tableName) {
+            this.tableName = tableName;
+        }
+        
+        public List<String> getColumns() {
+            return columns;
+        }
+        
+        public void setColumns(List<String> columns) {
+            this.columns = columns;
+        }
+        
+        public List<Map<String, Object>> getRows() {
+            return rows;
+        }
+        
+        public void setRows(List<Map<String, Object>> rows) {
+            this.rows = rows;
+        }
+        
+        public List<String> getFields() {
+            return fields;
+        }
+        
+        public void setFields(List<String> fields) {
+            this.fields = fields;
+        }
+        
+        public Integer getSampleSize() {
+            return sampleSize;
+        }
+        
+        public void setSampleSize(Integer sampleSize) {
+            this.sampleSize = sampleSize;
+        }
+        
+        public String getSourceQuery() {
+            return sourceQuery;
+        }
+        
+        public void setSourceQuery(String sourceQuery) {
+            this.sourceQuery = sourceQuery;
+        }
+        
+        public boolean isAppend() {
+            return append;
+        }
+        
+        public void setAppend(boolean append) {
+            this.append = append;
         }
     }
 }

@@ -124,6 +124,221 @@ public class DirectTableExportService {
     }
     
     /**
+     * Export stats table data (from pipe commands like | stats) to a real SQL table
+     * 
+     * @param tableName Name of the SQL table to create
+     * @param columns Column names from the stats result
+     * @param rows Row data from the stats result
+     * @param requestedColumns Specific columns to export (null = all)
+     * @param sampleSize Maximum number of rows to export (null = all)
+     * @param sourceQuery Original query that produced these results
+     * @param append If true, append to existing table; if false, replace
+     * @return Export statistics
+     */
+    @Transactional
+    public DirectExportResult exportStatsTable(String tableName, List<String> columns, 
+                                               List<Map<String, Object>> rows,
+                                               List<String> requestedColumns, Integer sampleSize,
+                                               String sourceQuery, boolean append) {
+        log.info("Direct stats export: {} rows to table '{}' (columns: {}, sample: {}, append: {})",
+                rows.size(), tableName, requestedColumns, sampleSize, append);
+        
+        // Validate table name
+        validateTableName(tableName);
+        tableName = sanitizeTableName(tableName);
+        
+        // Determine which rows to export
+        List<Map<String, Object>> toExport = rows;
+        if (sampleSize != null && sampleSize > 0 && sampleSize < rows.size()) {
+            toExport = rows.subList(0, sampleSize);
+        }
+        
+        if (toExport.isEmpty()) {
+            return new DirectExportResult(tableName, 0, 0, Collections.emptyList());
+        }
+        
+        // Determine columns to export
+        List<String> columnsToExport = requestedColumns != null && !requestedColumns.isEmpty() 
+            ? requestedColumns 
+            : columns;
+        
+        // Analyze data types
+        Map<String, ColumnType> columnTypes = analyzeStatsColumnTypes(columnsToExport, toExport);
+        TableSchema schema = new TableSchema(columnsToExport, columnTypes);
+        
+        try (Connection conn = dataSource.getConnection()) {
+            boolean tableExists = checkTableExists(conn, tableName);
+            
+            if (tableExists) {
+                if (append) {
+                    log.info("Table '{}' exists, appending data", tableName);
+                } else {
+                    log.info("Table '{}' exists, dropping and recreating (append=false)", tableName);
+                    dropTable(conn, tableName);
+                    createTable(conn, tableName, schema);
+                }
+            } else {
+                log.info("Creating new table '{}'", tableName);
+                createTable(conn, tableName, schema);
+            }
+            
+            // Insert data
+            int rowsInserted = insertStatsData(conn, tableName, schema, toExport);
+            
+            // Get final row count
+            long totalRows = getTableRowCount(tableName);
+            
+            log.info("Direct stats export complete: {} rows inserted to '{}' (total: {})",
+                    rowsInserted, tableName, totalRows);
+            
+            return new DirectExportResult(tableName, rowsInserted, totalRows, schema.columns);
+            
+        } catch (SQLException e) {
+            log.error("Error exporting stats table to '{}'", tableName, e);
+            throw new RuntimeException("Failed to export stats table: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Analyze column types from stats table data
+     */
+    private Map<String, ColumnType> analyzeStatsColumnTypes(List<String> columns, 
+                                                             List<Map<String, Object>> rows) {
+        Map<String, ColumnType> columnTypes = new LinkedHashMap<>();
+        
+        for (String column : columns) {
+            ColumnType type = ColumnType.VARCHAR_255; // default
+            
+            // Sample values from all rows
+            boolean allNumeric = true;
+            boolean hasDecimal = false;
+            int maxLength = 0;
+            
+            for (Map<String, Object> row : rows) {
+                Object value = row.get(column);
+                if (value != null) {
+                    String strValue = value.toString();
+                    maxLength = Math.max(maxLength, strValue.length());
+                    
+                    if (value instanceof Integer || value instanceof Long) {
+                        // Already numeric
+                    } else if (value instanceof Double || value instanceof Float) {
+                        hasDecimal = true;
+                    } else {
+                        allNumeric = false;
+                    }
+                }
+            }
+            
+            // Determine type
+            if (allNumeric && rows.stream().anyMatch(r -> r.get(column) != null)) {
+                type = hasDecimal ? ColumnType.DOUBLE : ColumnType.BIGINT;
+            } else if (maxLength <= 255) {
+                type = ColumnType.VARCHAR_255;
+            } else if (maxLength <= 1000) {
+                type = ColumnType.VARCHAR_1000;
+            } else {
+                type = ColumnType.LONG_TEXT;
+            }
+            
+            columnTypes.put(column, type);
+        }
+        
+        return columnTypes;
+    }
+    
+    /**
+     * Insert stats data into the table
+     */
+    private int insertStatsData(Connection conn, String tableName, TableSchema schema,
+                                List<Map<String, Object>> rows) throws SQLException {
+        
+        // Build INSERT statement
+        StringBuilder sql = new StringBuilder();
+        sql.append("INSERT INTO ").append(tableName).append(" (");
+        
+        for (int i = 0; i < schema.columns.size(); i++) {
+            sql.append("\"").append(sanitizeColumnName(schema.columns.get(i))).append("\"");
+            if (i < schema.columns.size() - 1) {
+                sql.append(", ");
+            }
+        }
+        
+        sql.append(") VALUES (");
+        for (int i = 0; i < schema.columns.size(); i++) {
+            sql.append("?");
+            if (i < schema.columns.size() - 1) {
+                sql.append(", ");
+            }
+        }
+        sql.append(")");
+        
+        int rowsInserted = 0;
+        
+        try (PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+            for (Map<String, Object> row : rows) {
+                // Set parameter values
+                for (int i = 0; i < schema.columns.size(); i++) {
+                    String column = schema.columns.get(i);
+                    Object value = row.get(column);
+                    
+                    if (value == null) {
+                        pstmt.setNull(i + 1, Types.VARCHAR);
+                    } else {
+                        ColumnType type = schema.columnTypes.get(column);
+                        setStatsParameterValue(pstmt, i + 1, value, type);
+                    }
+                }
+                
+                pstmt.addBatch();
+                rowsInserted++;
+                
+                // Execute batch every 1000 rows
+                if (rowsInserted % 1000 == 0) {
+                    pstmt.executeBatch();
+                }
+            }
+            
+            // Execute remaining batch
+            if (rowsInserted % 1000 != 0) {
+                pstmt.executeBatch();
+            }
+        }
+        
+        return rowsInserted;
+    }
+    
+    /**
+     * Set parameter value for stats data
+     */
+    private void setStatsParameterValue(PreparedStatement pstmt, int index, Object value,
+                                        ColumnType type) throws SQLException {
+        try {
+            switch (type) {
+                case BIGINT:
+                    if (value instanceof Number) {
+                        pstmt.setLong(index, ((Number) value).longValue());
+                    } else {
+                        pstmt.setLong(index, Long.parseLong(value.toString()));
+                    }
+                    break;
+                case DOUBLE:
+                    if (value instanceof Number) {
+                        pstmt.setDouble(index, ((Number) value).doubleValue());
+                    } else {
+                        pstmt.setDouble(index, Double.parseDouble(value.toString()));
+                    }
+                    break;
+                default:
+                    pstmt.setString(index, value.toString());
+            }
+        } catch (Exception e) {
+            // If conversion fails, store as string
+            pstmt.setString(index, value.toString());
+        }
+    }
+    
+    /**
      * Validate table name to prevent SQL injection
      */
     private void validateTableName(String tableName) {

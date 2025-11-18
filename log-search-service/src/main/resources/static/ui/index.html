@@ -2766,6 +2766,18 @@
                 pdfBtn.style.opacity = '0.5';
                 pdfBtn.style.cursor = 'not-allowed';
             }
+            
+            // Enable/disable Database button based on result type
+            const dbBtn = document.getElementById('exportDatabase');
+            if (resultType === 'LOGS' || resultType === 'TABLE') {
+                dbBtn.disabled = false;
+                dbBtn.style.opacity = '1';
+                dbBtn.style.cursor = 'pointer';
+            } else {
+                dbBtn.disabled = true;
+                dbBtn.style.opacity = '0.5';
+                dbBtn.style.cursor = 'not-allowed';
+            }
         }
         
         document.getElementById('exportCsv').addEventListener('click', () => exportToCsv());
@@ -2849,8 +2861,13 @@
         }
         
         async function exportToDatabase() {
-            if (!currentExportData || currentResultType !== 'LOGS') {
-                alert('Database export is only available for log results');
+            if (!currentExportData) {
+                alert('No data available for export');
+                return;
+            }
+            
+            if (currentResultType !== 'LOGS' && currentResultType !== 'TABLE') {
+                alert('Database export is only available for log results and stats tables');
                 return;
             }
             
@@ -2860,13 +2877,21 @@
         
         function showExportModal() {
             // Collect all available fields from current results
-            const allFields = new Set(['timestamp', 'raw_text']);
-            currentExportData.forEach(result => {
-                if (result.fields) {
-                    Object.keys(result.fields).forEach(field => allFields.add(field));
-                }
-            });
-            const fieldList = Array.from(allFields).sort();
+            let fieldList = [];
+            
+            if (currentResultType === 'TABLE') {
+                // For stats tables, use the columns directly
+                fieldList = currentExportData.columns || [];
+            } else {
+                // For log results, collect fields from data
+                const allFields = new Set(['timestamp', 'raw_text']);
+                currentExportData.forEach(result => {
+                    if (result.fields) {
+                        Object.keys(result.fields).forEach(field => allFields.add(field));
+                    }
+                });
+                fieldList = Array.from(allFields).sort();
+            }
             
             // Create modal HTML
             const modalHtml = `
@@ -2882,7 +2907,7 @@
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 6px; font-weight: 500;">Sample Size (optional)</label>
                             <input type="number" id="exportSampleSize" placeholder="Leave empty to export all rows" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
-                            <div style="font-size: 12px; color: #666; margin-top: 4px;">Total available: ${currentExportData.length} rows</div>
+                            <div style="font-size: 12px; color: #666; margin-top: 4px;">Total available: ${currentResultType === 'TABLE' ? currentExportData.rows.length : currentExportData.length} rows</div>
                         </div>
                         
                         <div style="margin-bottom: 16px;">
@@ -2985,36 +3010,62 @@
             closeExportModal();
             
             try {
-                const indices = document.getElementById('indices').value.split(',').map(s => s.trim()).filter(s => s);
-                const query = document.getElementById('query').value;
-                
-                const requestBody = {
-                    indices: indices,
-                    query: query,
-                    tableName: tableName,
-                    fields: fields,
-                    sampleSize: sampleSize,
-                    append: false
-                };
-                
-                // Add timestamp filters if present
-                if (currentTimeRange.from) {
-                    requestBody.timestampFrom = new Date(currentTimeRange.from).getTime();
-                }
-                if (currentTimeRange.to) {
-                    requestBody.timestampTo = new Date(currentTimeRange.to).getTime();
-                }
-                
                 const messageEl = document.getElementById('message');
                 messageEl.innerHTML = '<div class="loading">Exporting to database...</div>';
                 
-                const response = await fetch('/api/export/results', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                });
+                let response;
+                
+                if (currentResultType === 'TABLE') {
+                    // Export stats table data
+                    const query = document.getElementById('query').value;
+                    
+                    const requestBody = {
+                        tableName: tableName,
+                        columns: currentExportData.columns,
+                        rows: currentExportData.rows,
+                        fields: fields,
+                        sampleSize: sampleSize,
+                        sourceQuery: query,
+                        append: false
+                    };
+                    
+                    response = await fetch('/api/export/stats', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+                } else {
+                    // Export log results (existing code)
+                    const indices = document.getElementById('indices').value.split(',').map(s => s.trim()).filter(s => s);
+                    const query = document.getElementById('query').value;
+                    
+                    const requestBody = {
+                        indices: indices,
+                        query: query,
+                        tableName: tableName,
+                        fields: fields,
+                        sampleSize: sampleSize,
+                        append: false
+                    };
+                    
+                    // Add timestamp filters if present
+                    if (currentTimeRange.from) {
+                        requestBody.timestampFrom = new Date(currentTimeRange.from).getTime();
+                    }
+                    if (currentTimeRange.to) {
+                        requestBody.timestampTo = new Date(currentTimeRange.to).getTime();
+                    }
+                    
+                    response = await fetch('/api/export/results', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+                }
                 
                 if (!response.ok) {
                     const error = await response.text();
