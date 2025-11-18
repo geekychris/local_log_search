@@ -19,6 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <spring.boot.version>3.2.0</spring.boot.version>
+        <spring.ai.version>1.0.0-M4</spring.ai.version>
         <vaadin.version>24.4.6</vaadin.version>
         <lucene.version>9.9.1</lucene.version>
         <logback.version>1.4.14</logback.version>
@@ -71,10 +72,26 @@
                 <artifactId>lucene-facet</artifactId>
                 <version>${lucene.version}</version>
             </dependency>
+            
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring.ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
         <repository>
             <id>vaadin-addons</id>
             <url>https://maven.vaadin.com/vaadin-addons</url>

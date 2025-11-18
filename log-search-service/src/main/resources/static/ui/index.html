@@ -661,6 +661,144 @@
             color: #2980b9;
             text-decoration-style: solid;
         }
+        .ai-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .ai-modal.active {
+            display: block;
+        }
+        .ai-modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 0;
+            border: 1px solid #888;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 700px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .ai-modal-header {
+            background: #3498db;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ai-modal-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+        .ai-modal-close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            line-height: 1;
+        }
+        .ai-modal-close:hover {
+            opacity: 0.7;
+        }
+        .ai-modal-body {
+            padding: 1.5rem;
+        }
+        .ai-input-group {
+            margin-bottom: 1rem;
+        }
+        .ai-input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        .ai-input-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+        }
+        .ai-response {
+            margin-top: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .ai-query-box {
+            background: #f8f9fa;
+            border: 2px solid #3498db;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .ai-query-box:hover {
+            background: #e8f4f8;
+            border-color: #2980b9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .ai-query-text {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.95rem;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #27ae60;
+        }
+        .ai-query-explanation {
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 0.875rem;
+            color: #555;
+            line-height: 1.5;
+        }
+        .ai-raw-response {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #666;
+        }
+        .ai-loading {
+            text-align: center;
+            padding: 1rem;
+            color: #666;
+        }
+        .ai-error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+        .ai-use-button {
+            background: #27ae60;
+            margin-top: 0.5rem;
+        }
+        .ai-use-button:hover {
+            background: #229954;
+        }
     </style>
 </head>
 <body>
@@ -699,7 +837,10 @@
                             </div>
                             <div class="form-group">
                                 <label for="query">Query</label>
-                                <input type="text" id="query" placeholder="level:ERROR | stats count by user" value="">
+                                <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                                    <input type="text" id="query" placeholder="level:ERROR | stats count by user" value="" style="flex: 1;">
+                                    <button type="button" id="aiHelperBtn" class="secondary" style="padding: 0.75rem 1rem; white-space: nowrap;">🤖 AI Help</button>
+                                </div>
                                 <div class="query-hint">
                                     Use field:value for exact matches, field:[min TO max] for ranges. Pipe commands (|) enable aggregations: | stats, | chart, | timechart. See Query Examples for details.
                                 </div>
@@ -3012,6 +3153,214 @@
         document.getElementById('timeRefinementPopup').addEventListener('click', (e) => {
             e.stopPropagation();
         });
+    </script>
+    
+    <!-- AI Helper Modal -->
+    <div id="aiModal" class="ai-modal">
+        <div class="ai-modal-content">
+            <div class="ai-modal-header">
+                <h2>🤖 AI Query Helper</h2>
+                <button id="aiModalClose" class="ai-modal-close">&times;</button>
+            </div>
+            <div class="ai-modal-body">
+                <div class="ai-input-group">
+                    <label for="aiUserRequest">What do you want to search for?</label>
+                    <textarea id="aiUserRequest" placeholder="Example: Show me all errors in the last hour grouped by user&#10;Example: Find slow queries and calculate average duration&#10;Example: Add a filter to only show amounts greater than 100"></textarea>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #666;">
+                        <input type="checkbox" id="aiIncludeCurrentQuery">
+                        Modify current query (if unchecked, creates new query)
+                    </label>
+                </div>
+                <button id="aiAskBtn">Ask AI</button>
+                <div id="aiResponse"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // AI Helper Modal - must be after modal HTML
+        const aiModal = document.getElementById('aiModal');
+        const aiHelperBtn = document.getElementById('aiHelperBtn');
+        const aiModalClose = document.getElementById('aiModalClose');
+        const aiAskBtn = document.getElementById('aiAskBtn');
+        
+        aiHelperBtn.addEventListener('click', () => {
+            aiModal.classList.add('active');
+        });
+        
+        aiModalClose.addEventListener('click', () => {
+            aiModal.classList.remove('active');
+        });
+        
+        window.addEventListener('click', (e) => {
+            if (e.target === aiModal) {
+                aiModal.classList.remove('active');
+            }
+        });
+        
+        aiAskBtn.addEventListener('click', async () => {
+            const userRequest = document.getElementById('aiUserRequest').value.trim();
+            const currentQuery = document.getElementById('query').value.trim();
+            const responseDiv = document.getElementById('aiResponse');
+            
+            if (!userRequest) {
+                responseDiv.innerHTML = '<div class="ai-error">Please describe what you want to search for.</div>';
+                return;
+            }
+            
+            responseDiv.innerHTML = '<div class="ai-loading">🤖 AI is thinking...</div>';
+            
+            try {
+                const response = await fetch('/api/ai/help', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userRequest: userRequest,
+                        currentQuery: currentQuery
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('AI service unavailable');
+                }
+                
+                const data = await response.json();
+                
+                // Parse structured response to extract queries
+                const queries = parseAIResponse(data.suggestion);
+                
+                if (queries.length > 0) {
+                    let html = '<div class="ai-response">';
+                    queries.forEach((q, index) => {
+                        html += `
+                            <div class="ai-query-box" data-query="${escapeHtml(q.query)}">
+                                <div class="ai-query-text">${escapeHtml(q.query)}</div>
+                                <div class="ai-query-explanation">${escapeHtml(q.explanation)}</div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    responseDiv.innerHTML = html;
+                    
+                    // Add click handlers to each query box
+                    document.querySelectorAll('.ai-query-box').forEach(box => {
+                        box.addEventListener('click', () => {
+                            const query = box.dataset.query;
+                            document.getElementById('query').value = query;
+                            aiModal.classList.remove('active');
+                        });
+                    });
+                } else {
+                    // Fallback: show raw response if parsing fails
+                    responseDiv.innerHTML = `
+                        <div class="ai-response">
+                            <div class="ai-raw-response">${escapeHtml(data.suggestion)}</div>
+                            <p style="margin-top: 0.5rem; color: #666; font-size: 0.875rem;">
+                                Could not parse structured queries. Please copy manually.
+                            </p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                responseDiv.innerHTML = `<div class="ai-error">
+                    ❌ AI service unavailable. Make sure Ollama is running:<br><br>
+                    <code>brew install ollama</code><br>
+                    <code>ollama pull llama3.2</code><br>
+                    <code>ollama serve</code>
+                </div>`;
+            }
+        });
+        
+        // Helper function to parse AI response into structured queries
+        function parseAIResponse(text) {
+            const queries = [];
+            
+            // Method 1: Look for markdown code blocks with backticks
+            const codeBlockRegex = /`([^`]+)`/g;
+            let match;
+            const codeBlocks = [];
+            while ((match = codeBlockRegex.exec(text)) !== null) {
+                const query = match[1].trim();
+                // Filter out queries that look like they contain pipe (|) - likely actual queries
+                if (query.includes('|') || query.includes(':')) {
+                    codeBlocks.push(query);
+                }
+            }
+            
+            // Method 2: Look for "QUERY:" structured format
+            const lines = text.split('\n');
+            let currentQuery = null;
+            let currentExplanation = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                if (line === 'QUERY:') {
+                    // Save previous query if exists
+                    if (currentQuery) {
+                        queries.push({
+                            query: currentQuery,
+                            explanation: currentExplanation.join(' ').trim()
+                        });
+                    }
+                    // Next line is the query
+                    i++;
+                    currentQuery = (lines[i] || '').trim();
+                    currentExplanation = [];
+                } else if (currentQuery && line && !/^QUERY:/.test(line)) {
+                    // Accumulate explanation lines until next QUERY:
+                    currentExplanation.push(line);
+                }
+            }
+            
+            // Save last captured query from QUERY: format
+            if (currentQuery) {
+                queries.push({
+                    query: currentQuery,
+                    explanation: currentExplanation.join(' ').trim()
+                });
+            }
+            
+            // If we found QUERY: format, use that. Otherwise, use code blocks
+            if (queries.length === 0 && codeBlocks.length > 0) {
+                // Extract explanation for each code block
+                codeBlocks.forEach(query => {
+                    // Find the text around this query in the original text
+                    const queryIndex = text.indexOf(query);
+                    let explanation = '';
+                    
+                    // Get text after the query (up to next code block or end)
+                    if (queryIndex !== -1) {
+                        const afterQuery = text.substring(queryIndex + query.length);
+                        // Remove the backticks and get the next sentence
+                        const cleaned = afterQuery.replace(/`/g, '').trim();
+                        const sentences = cleaned.split(/[.!?]/);
+                        if (sentences.length > 0) {
+                            explanation = sentences[0].trim();
+                            // Get more context if first sentence is too short
+                            if (explanation.length < 30 && sentences.length > 1) {
+                                explanation = sentences.slice(0, 2).join('. ').trim();
+                            }
+                        }
+                    }
+                    
+                    queries.push({ query, explanation });
+                });
+            }
+            
+            return queries;
+        }
+        
+        // Helper function to escape HTML for safe insertion
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
     </script>
 </body>
 </html>

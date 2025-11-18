@@ -384,4 +384,39 @@ public class TransformCommand implements PipeCommand {
     public String getName() {
         return "transform";
     }
+    
+    @Override
+    public String getAIDocumentation() {
+        return """
+## Transform Command
+Modifies existing fields or creates new computed fields. Use this to reshape data before aggregation or to extract structured information from unstructured fields.
+
+Rename a field:
+- `| transform rename user as username` - Change field name from 'user' to 'username'
+
+Extract data using regex (captures first group):
+- `| transform extract url regex "host=([^&]+)" as hostname` - Pull hostname from URL parameter
+- `| transform extract message regex "duration=(\\d+)" as duration_ms` - Extract numeric duration from text
+- `| transform extract path regex "/api/v\\d+/([^/]+)" as endpoint` - Get API endpoint from path
+
+Replace/redact text:
+- `| transform replace message regex "\\d{3}-\\d{2}-\\d{4}" with "XXX-XX-XXXX"` - Mask SSNs
+- `| transform replace email regex "@.*" with "@redacted.com"` - Anonymize email domains
+
+Merge multiple fields:
+- `| transform merge user,operation as user_op separator="_"` - Combine user and operation into single field
+- `| transform merge class,method as full_method separator="."` - Create fully qualified method name
+- `| transform merge host,port as address separator=":"` - Build host:port string
+
+Evaluate expressions (basic arithmetic):
+- `| transform eval duration_sec = duration / 1000` - Convert milliseconds to seconds
+- `| transform eval total = price * quantity` - Calculate totals
+
+Remove fields:
+- `| transform remove temp_field` - Delete a field from results
+
+Common patterns:
+- Extract then filter: `* | transform extract url regex "env=([^&]+)" as environment | filter environment = "prod"`
+- Merge then group: `* | transform merge service,operation as svc_op separator=":" | stats count by svc_op`""";
+    }
 }

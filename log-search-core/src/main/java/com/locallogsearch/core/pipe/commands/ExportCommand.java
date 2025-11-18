@@ -78,6 +78,44 @@ public class ExportCommand implements PipeCommand {
         return "export";
     }
     
+    @Override
+    public String getAIDocumentation() {
+        return """
+## Export Command
+Saves log search results to a database table for later SQL analysis. Use this when the user wants to save, persist, or run SQL queries on search results.
+
+Syntax: `| export table=<tablename> [fields=<field1>,<field2>...] [sample=<count>] [append=true|false]`
+
+Basic export (all fields):
+- `| export table=error_logs` - Export all error results to table named 'error_logs'
+- Creates new table (overwrites if exists unless append=true)
+
+Select specific fields:
+- `| export table=slow_requests fields=timestamp,endpoint,duration,user` - Only save these columns
+- Reduces storage when you only need subset of data
+
+Limit result size:
+- `| export table=error_sample sample=1000` - Only export first 1000 results
+- `| export table=recent_errors sample=500 fields=timestamp,message` - Sample with field selection
+
+Append to existing table:
+- `| export table=daily_stats append=true` - Add to existing data (don't replace)
+- Useful for incremental log collection
+
+When to use export:
+- User says "save these results" / "put this in a table" → export
+- User wants to "analyze with SQL later" → export  
+- User wants to "combine multiple searches" → export with append=true
+- Building reports or datasets → export
+
+After exporting, users can query tables at the SQL Query UI.
+
+Common patterns:
+- Sample errors: `level:ERROR | export table=errors sample=10000`
+- Save performance data: `status:slow | export table=perf_issues fields=timestamp,operation,duration,user`
+- Daily snapshots: `timestamp:[NOW-1d TO NOW] | stats count by service | export table=daily_service_stats append=true`""";
+    }
+    
     public String getTableName() {
         return tableName;
     }

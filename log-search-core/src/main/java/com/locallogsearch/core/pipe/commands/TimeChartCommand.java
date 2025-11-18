@@ -133,4 +133,41 @@ public class TimeChartCommand implements PipeCommand {
     public String getName() {
         return "timechart";
     }
+    
+    @Override
+    public String getAIDocumentation() {
+        return """
+## TimeChart Command  
+Creates time-series charts showing how metrics change over time. Use this when the user asks about trends, patterns over time, or "over the last X hours/days".
+
+Syntax: `| timechart span=<interval> <function> [by <field>]`
+
+Basic time series:
+- `| timechart span=1h count` - Event count per hour (single line)
+- `| timechart span=5m count` - Event count every 5 minutes (useful for recent activity)
+- `| timechart span=1d count` - Daily event counts (good for longer periods)
+
+Compare multiple series:
+- `| timechart span=30m count by user` - Separate line for each user's activity over time
+- `| timechart span=1h count by level` - Compare ERROR vs WARN vs INFO trends hourly
+- `| timechart span=15m avg(duration) by service` - Performance trends per service
+
+Span formats:
+- `span=30s` - 30 second intervals (high resolution)
+- `span=5m` - 5 minute intervals (typical for recent monitoring)
+- `span=1h` - Hourly intervals (standard for daily views)
+- `span=1d` - Daily intervals (for week/month views)
+
+When to use timechart:
+- User asks "over time" / "trend" / "in the last hour" → timechart
+- User asks "when did" / "how has X changed" → timechart  
+- User wants to see patterns or spikes → timechart
+- Comparing normal vs anomalous periods → timechart
+
+Common use cases:
+- Error spikes: `level:ERROR | timechart span=15m count` - When did errors spike?
+- Performance degradation: `* | timechart span=1h avg(duration)` - When did things slow down?
+- Compare services: `* | timechart span=30m count by service` - Which service is busiest when?
+- User activity: `* | timechart span=1d dc(user)` - Daily unique user counts""";
+    }
 }

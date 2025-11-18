@@ -256,4 +256,40 @@ public class StatsCommand implements PipeCommand {
     public String getName() {
         return "stats";
     }
+    
+    @Override
+    public String getAIDocumentation() {
+        return """
+## Stats Command
+Computes aggregations over log entries. Use this to count events, calculate statistics, or group results for analysis.
+
+Syntax: `| stats <function> [<function>...] [by <field> [<field>...]]`
+
+Basic counting:
+- `| stats count` - Total number of log entries (returns single row)
+
+Group by single field:
+- `| stats count by user` - Count events per user
+- `| stats count by level` - Count by log level (ERROR, WARN, INFO, etc.)
+- `| stats count by status` - Group by HTTP status code
+
+Multiple aggregations:
+- `| stats count avg(duration) by operation` - Count and average duration per operation
+- `| stats min(amount) max(amount) sum(amount) by user` - Financial statistics per user
+- `| stats count avg(duration) by service operation` - Group by multiple fields
+
+Available functions:
+- `count` - Number of matching entries
+- `sum(field)` - Total of numeric field values (e.g., `sum(bytes)` for total traffic)
+- `avg(field)` - Average of numeric field (e.g., `avg(duration)` for mean response time)
+- `min(field)` - Minimum value (e.g., `min(duration)` for fastest request)
+- `max(field)` - Maximum value (e.g., `max(amount)` for largest transaction)
+- `dc(field)` - Distinct count (e.g., `dc(user)` for unique users)
+
+Common use cases:
+- Error analysis: `level:ERROR | stats count by component` - Which components have most errors
+- Performance: `* | stats avg(duration) max(duration) by endpoint` - Identify slow endpoints  
+- User activity: `* | stats count dc(operation) by user` - Events and unique operations per user
+- Time-based: Use with search time ranges to analyze specific periods""";
+    }
 }

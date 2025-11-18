@@ -191,4 +191,35 @@ public class FilterCommand implements PipeCommand {
     public String getName() {
         return "filter";
     }
+    
+    @Override
+    public String getAIDocumentation() {
+        return """
+## Filter Command
+Filters log entries or aggregated results based on field conditions. Use this to narrow down results after the initial search or after aggregations.
+
+Syntax: `| filter <field> <operator> <value>`
+
+Comparison operators:
+- `| filter amount > 100` - Keep only entries where amount is greater than 100
+- `| filter count >= 50` - Keep rows where count is 50 or more
+- `| filter duration < 1000` - Filter to durations under 1000ms
+- `| filter status = "success"` or `status == "success"` - Exact match
+- `| filter level != "DEBUG"` - Exclude debug entries
+
+String operators:
+- `| filter message contains "timeout"` - Message field contains the word "timeout"
+- `| filter user startswith "admin"` - User field starts with "admin"
+- `| filter endpoint endswith "/api"` - Endpoint ends with "/api"
+
+Regex operators:
+- `| filter message regex "error|exception|failure"` - Match any of these patterns
+- `| filter user regex "^(alice|bob|charlie)$"` - Match specific users
+- `| filter hostname !regex "dev.*"` - Exclude hostnames starting with "dev"
+
+Common use cases:
+- After search: `error | filter amount > 200` - Find expensive errors
+- After stats: `* | stats count by user | filter count > 100` - Find heavy users
+- Multi-stage: `* | filter duration > 1000 | stats avg(duration) by service` - Analyze slow requests""";
+    }
 }

@@ -103,4 +103,37 @@ public class ChartCommand implements PipeCommand {
     public String getName() {
         return "chart";
     }
+    
+    @Override
+    public String getAIDocumentation() {
+        return """
+## Chart Command
+Creates visual charts from log data. Use this instead of stats when the user asks for graphs, charts, or visualizations.
+
+Syntax: `| chart [type=<charttype>] <function> by <field>`
+
+Bar charts (default):
+- `| chart count by user` - Bar chart showing event count per user
+- `| chart type=bar avg(duration) by operation` - Bar chart of average duration per operation
+- `| chart sum(bytes) by endpoint` - Total bytes per endpoint as bars
+
+Pie charts (for distribution/proportions):
+- `| chart type=pie count by status` - Show proportion of each status code
+- `| chart type=pie count by level` - Distribution of ERROR/WARN/INFO logs
+- `| chart type=pie sum(amount) by category` - Financial breakdown by category
+
+Line charts (for trends):
+- `| chart type=line count by hour` - Trend line of events over hours
+- `| chart type=line avg(duration) by service` - Performance comparison across services
+
+When to use chart vs stats:
+- User asks "show me" / "visualize" / "graph" → use chart
+- User asks "how many" / "count" / "list" → use stats
+- Chart is stats + visualization in one command
+
+Common patterns:
+- `error | chart type=pie count by component` - Which components have most errors (pie)
+- `status:[400 TO 499] | chart count by status` - Client error distribution (bar)
+- `slow | chart type=bar avg(duration) by user` - Average slowness per user (bar)""";
+    }
 }
