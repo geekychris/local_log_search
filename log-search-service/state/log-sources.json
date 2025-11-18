@@ -1,4 +1,12 @@
 {
+  "21912370-2fb4-405b-95f2-d98ab7fef97d" : {
+    "id" : "21912370-2fb4-405b-95f2-d98ab7fef97d",
+    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/generator.log",
+    "indexName" : "generator-log",
+    "parserType" : "keyvalue",
+    "parserConfig" : { },
+    "enabled" : true
+  },
   "54f12872-5881-453b-9d15-f29723075a20" : {
     "id" : "54f12872-5881-453b-9d15-f29723075a20",
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
@@ -7,12 +15,14 @@
     "parserConfig" : { },
     "enabled" : true
   },
-  "21912370-2fb4-405b-95f2-d98ab7fef97d" : {
-    "id" : "21912370-2fb4-405b-95f2-d98ab7fef97d",
-    "filePath" : "/Users/chris/code/warp_experiments/local_log_search/generator.log",
-    "indexName" : "generator-log",
-    "parserType" : "keyvalue",
-    "parserConfig" : { },
+  "defcb6b6-4915-4dbd-8473-41301ed188b0" : {
+    "id" : "defcb6b6-4915-4dbd-8473-41301ed188b0",
+    "filePath" : "/Users/chris/generator.log",
+    "indexName" : "chris-x",
+    "parserType" : "grok",
+    "parserConfig" : {
+      "pattern" : "%{TIMESTAMP_ISO8601:timestamp} %{LOGLEVEL:level} %{DATA:class_or_type} %{GREEDYDATA:message}"
+    },
     "enabled" : true
   }
 }

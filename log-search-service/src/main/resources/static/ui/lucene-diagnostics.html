@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucene Diagnostics - Little Log Peep</title>
+    <link rel="icon" href="LLP_Logo.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .header-logo {
+            height: 50px;
+            width: auto;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .nav-links a:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .nav-links a.active {
+            background: rgba(255,255,255,0.2);
+        }
+        .container {
+            margin: 0;
+            padding: 2rem;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+        .card h3 {
+            font-size: 1.1rem;
+            margin: 1.5rem 0 1rem 0;
+            color: #34495e;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        select, input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        textarea {
+            font-family: 'Monaco', 'Courier New', monospace;
+            resize: vertical;
+            min-height: 100px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        button.danger {
+            background: #e74c3c;
+        }
+        button.danger:hover {
+            background: #c0392b;
+        }
+        button.warning {
+            background: #f39c12;
+        }
+        button.warning:hover {
+            background: #d68910;
+        }
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .stat-box {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+        }
+        .stat-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .field-row {
+            cursor: pointer;
+        }
+        .field-row.selected {
+            background: #e3f2fd !important;
+        }
+        .result-item {
+            background: #f8f9fa;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+        }
+        .result-meta {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        .result-fields {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+        .result-field {
+            margin: 0.25rem 0;
+        }
+        .result-field-name {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        .result-field-value {
+            color: #2c3e50;
+        }
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #c00;
+            margin-top: 1rem;
+        }
+        .success {
+            background: #efe;
+            color: #060;
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 3px solid #060;
+            margin-top: 1rem;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        .segment-box {
+            background: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid #9b59b6;
+        }
+        .segment-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+        code {
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            overflow: auto;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 900px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            margin: 0;
+            color: #2c3e50;
+        }
+        .modal-close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+        .modal-close:hover {
+            color: #000;
+        }
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <img src="LLP_Logo.png" alt="Logo" class="header-logo">
+            <h1>Lucene Diagnostics</h1>
+        </div>
+        <div class="nav-links">
+            <a href="index.html">Search</a>
+            <a href="sources.html">Sources</a>
+            <a href="sql.html">SQL</a>
+            <a href="lucene-diagnostics.html" class="active">Diagnostics</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Index Selection</h2>
+            <div class="form-group">
+                <label for="indexSelect">Select Index:</label>
+                <select id="indexSelect" onchange="loadIndexInfo()">
+                    <option value="">-- Select an index --</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="indexInfoSection" style="display: none;">
+            <div class="card">
+                <h2>Index Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Total Documents</div>
+                        <div class="stat-value" id="numDocs">-</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Max Doc</div>
+                        <div class="stat-value" id="maxDoc">-</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Deleted Docs</div>
+                        <div class="stat-value" id="numDeletedDocs">-</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Segments</div>
+                        <div class="stat-value" id="numSegments">-</div>
+                    </div>
+                </div>
+                <div>
+                    <strong>Index Path:</strong> <code id="indexPath">-</code>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Fields</h2>
+                <table id="fieldsTable">
+                    <thead>
+                        <tr>
+                            <th>Field Name</th>
+                            <th>Index Options</th>
+                            <th>Doc Values</th>
+                            <th>Unique Terms</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fieldsTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>Query Interface</h2>
+                <div class="form-group">
+                    <label for="queryField">Search Field:</label>
+                    <select id="queryField">
+                        <option value="message">message</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="luceneQuery">Lucene Query:</label>
+                    <textarea id="luceneQuery" placeholder="Enter Lucene query (e.g., error OR exception)">*:*</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="maxResults">Max Results:</label>
+                    <input type="number" id="maxResults" value="100" min="1" max="1000">
+                </div>
+                <button onclick="executeQuery()">Execute Query</button>
+                <div id="queryResults"></div>
+            </div>
+
+            <div class="card">
+                <h2>Segments</h2>
+                <div id="segmentsContainer"></div>
+            </div>
+
+            <div class="card">
+                <h2>Index Maintenance</h2>
+                <p>Force merge will consolidate index segments. This can improve search performance but may take time.</p>
+                <div class="form-group">
+                    <label for="maxSegments">Max Segments (1 = full merge):</label>
+                    <input type="number" id="maxSegments" value="1" min="1">
+                </div>
+                <button class="warning" onclick="forceMerge()">Force Merge</button>
+                <div id="mergeResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Field Terms Modal -->
+    <div id="fieldTermsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Field Terms</h2>
+                <button class="modal-close" onclick="closeFieldTermsModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="fieldTermsModalBody">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentIndexName = '';
+        let indexInfo = null;
+
+        // Utility function - define early
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load list of indices on page load
+        async function loadIndices() {
+            try {
+                const response = await fetch('/api/indices');
+                const indices = await response.json();
+                
+                const select = document.getElementById('indexSelect');
+                select.innerHTML = '<option value="">-- Select an index --</option>';
+                
+                indices.forEach(index => {
+                    const option = document.createElement('option');
+                    option.value = index.name;
+                    option.textContent = `${index.name} (${index.documentCount} docs)`;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading indices:', error);
+            }
+        }
+
+        // Load detailed info for selected index
+        async function loadIndexInfo() {
+            const indexName = document.getElementById('indexSelect').value;
+            
+            if (!indexName) {
+                document.getElementById('indexInfoSection').style.display = 'none';
+                return;
+            }
+            
+            currentIndexName = indexName;
+            
+            try {
+                const response = await fetch(`/api/lucene-diagnostics/${indexName}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load index info');
+                }
+                
+                indexInfo = await response.json();
+                
+                // Update statistics
+                document.getElementById('numDocs').textContent = indexInfo.numDocs;
+                document.getElementById('maxDoc').textContent = indexInfo.maxDoc;
+                document.getElementById('numDeletedDocs').textContent = indexInfo.numDeletedDocs;
+                document.getElementById('numSegments').textContent = indexInfo.numSegments;
+                document.getElementById('indexPath').textContent = indexInfo.indexPath;
+                
+                // Update fields table
+                const tbody = document.getElementById('fieldsTableBody');
+                tbody.innerHTML = '';
+                
+                // Populate query field selector
+                const queryFieldSelect = document.getElementById('queryField');
+                queryFieldSelect.innerHTML = '';
+                
+                indexInfo.fields.forEach(field => {
+                    const row = document.createElement('tr');
+                    row.className = 'field-row';
+                    row.innerHTML = `
+                        <td><strong>${escapeHtml(field.name)}</strong></td>
+                        <td>${field.indexOptions}</td>
+                        <td>${field.docValuesType}</td>
+                        <td>${field.uniqueTerms !== undefined ? field.uniqueTerms : 'N/A'}</td>
+                        <td><button class="view-terms-btn">View Terms</button></td>
+                    `;
+                    tbody.appendChild(row);
+                    
+                    // Attach event listener to the button
+                    const button = row.querySelector('.view-terms-btn');
+                    if (button) {
+                        console.log('Attaching listener to button for field:', field.name);
+                        button.addEventListener('click', () => {
+                            console.log('View Terms clicked for field:', field.name);
+                            viewFieldTerms(field.name);
+                        });
+                    } else {
+                        console.error('Button not found for field:', field.name);
+                    }
+                    
+                    // Add to query field selector
+                    const option = document.createElement('option');
+                    option.value = field.name;
+                    option.textContent = field.name;
+                    queryFieldSelect.appendChild(option);
+                });
+                
+                // Update segments
+                displaySegments(indexInfo.segments);
+                
+                document.getElementById('indexInfoSection').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading index info:', error);
+                alert('Failed to load index information');
+            }
+        }
+
+        function displaySegments(segments) {
+            const container = document.getElementById('segmentsContainer');
+            container.innerHTML = '';
+            
+            segments.forEach((segment, index) => {
+                const segmentDiv = document.createElement('div');
+                segmentDiv.className = 'segment-box';
+                segmentDiv.innerHTML = `
+                    <div style="margin-bottom: 0.5rem;"><strong>${segment.segmentName || 'Segment ' + index}</strong></div>
+                    <div class="segment-info">
+                        <span>Docs: ${segment.numDocs}</span>
+                        <span>Max Doc: ${segment.maxDoc}</span>
+                        <span>Deleted: ${segment.numDeletedDocs}</span>
+                        ${segment.sizeInBytes ? `<span>Size: ${formatBytes(segment.sizeInBytes)}</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(segmentDiv);
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            const exp = Math.floor(Math.log(bytes) / Math.log(1024));
+            const pre = 'KMGTPE'.charAt(exp - 1);
+            return (bytes / Math.pow(1024, exp)).toFixed(1) + ' ' + pre + 'B';
+        }
+
+        async function executeQuery() {
+            const queryString = document.getElementById('luceneQuery').value;
+            const field = document.getElementById('queryField').value;
+            const maxResults = parseInt(document.getElementById('maxResults').value);
+            
+            const resultsDiv = document.getElementById('queryResults');
+            resultsDiv.innerHTML = '<div class="loading">Executing query...</div>';
+            
+            try {
+                const response = await fetch(`/api/lucene-diagnostics/${currentIndexName}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: queryString,
+                        field: field,
+                        maxResults: maxResults
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultsDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="success">
+                        <div>Query: <code>${data.query}</code></div>
+                        <div>Total Hits: ${data.totalHits} (${data.relation})</div>
+                    </div>
+                `;
+                
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(result => {
+                        html += `
+                            <div class="result-item">
+                                <div class="result-meta">Doc ID: ${result.docId} | Score: ${result.score.toFixed(4)}</div>
+                                <div class="result-fields">
+                        `;
+                        
+                        for (const [fieldName, values] of Object.entries(result.fields)) {
+                            values.forEach(value => {
+                                html += `<div class="result-field"><span class="result-field-name">${fieldName}:</span> <span class="result-field-value">${escapeHtml(value)}</span></div>`;
+                            });
+                        }
+                        
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html += '<div>No results found</div>';
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error executing query:', error);
+                resultsDiv.innerHTML = `<div class="error">Query execution failed: ${error.message}</div>`;
+            }
+        }
+
+        function closeFieldTermsModal() {
+            document.getElementById('fieldTermsModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('fieldTermsModal');
+            if (event.target == modal) {
+                closeFieldTermsModal();
+            }
+        }
+
+        async function viewFieldTerms(fieldName) {
+            const modal = document.getElementById('fieldTermsModal');
+            const modalBody = document.getElementById('fieldTermsModalBody');
+            
+            modal.style.display = 'block';
+            modalBody.innerHTML = '<div class="loading">Loading field terms...</div>';
+            
+            try {
+                const response = await fetch(`/api/lucene-diagnostics/${currentIndexName}/field/${encodeURIComponent(fieldName)}/terms?limit=50`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    modalBody.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                if (data.message) {
+                    modalBody.innerHTML = `<div class="error">${data.message}</div>`;
+                    return;
+                }
+                
+                let html = `
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">Field Name</div>
+                            <div class="stat-value" style="font-size: 1.2rem;">${escapeHtml(data.fieldName)}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Unique Terms</div>
+                            <div class="stat-value">${data.uniqueTerms}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Sum Doc Freq</div>
+                            <div class="stat-value">${data.sumDocFreq}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">Sum Total Term Freq</div>
+                            <div class="stat-value">${data.sumTotalTermFreq}</div>
+                        </div>
+                    </div>
+                    <h3>Top ${data.limit} Terms:</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Term</th>
+                                <th>Doc Frequency</th>
+                                <th>Total Term Frequency</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                if (data.topTerms && data.topTerms.length > 0) {
+                    data.topTerms.forEach(term => {
+                        html += `
+                            <tr>
+                                <td><code>${escapeHtml(term.term)}</code></td>
+                                <td>${term.docFreq.toLocaleString()}</td>
+                                <td>${term.totalTermFreq.toLocaleString()}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html += '<tr><td colspan="3" style="text-align: center; padding: 2rem; color: #666;">No terms found</td></tr>';
+                }
+                
+                html += `
+                        </tbody>
+                    </table>
+                `;
+                
+                modalBody.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading field terms:', error);
+                modalBody.innerHTML = `<div class="error">Failed to load field terms: ${error.message}</div>`;
+            }
+        }
+
+        async function forceMerge() {
+            if (!confirm('Force merge can take a long time. Continue?')) {
+                return;
+            }
+            
+            const maxSegments = parseInt(document.getElementById('maxSegments').value);
+            const resultsDiv = document.getElementById('mergeResults');
+            resultsDiv.innerHTML = '<div class="loading">Merging index segments...</div>';
+            
+            try {
+                const response = await fetch(`/api/lucene-diagnostics/${currentIndexName}/merge`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        maxSegments: maxSegments
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    resultsDiv.innerHTML = `<div class="error">${data.error}</div>`;
+                    return;
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <div>${data.message}</div>
+                        <div>Segments before: ${data.segmentsBefore}</div>
+                        <div>Segments after: ${data.segmentsAfter}</div>
+                    </div>
+                `;
+                
+                // Reload index info to show updated stats
+                loadIndexInfo();
+                
+            } catch (error) {
+                console.error('Error merging index:', error);
+                resultsDiv.innerHTML = `<div class="error">Merge failed: ${error.message}</div>`;
+            }
+        }
+
+        // Load indices on page load
+        loadIndices();
+    </script>
+</body>
+</html>

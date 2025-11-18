@@ -25,6 +25,7 @@
 package com.locallogsearch.service.controller;
 
 import com.locallogsearch.core.search.SearchResult;
+import com.locallogsearch.service.ai.GrokHelperService;
 import com.locallogsearch.service.ai.QueryHelperService;
 import com.locallogsearch.service.ai.SqlHelperService;
 import com.locallogsearch.service.ai.SummarizationService;
@@ -41,13 +42,16 @@ public class QueryHelperController {
     private final QueryHelperService queryHelperService;
     private final SqlHelperService sqlHelperService;
     private final SummarizationService summarizationService;
+    private final GrokHelperService grokHelperService;
     
     public QueryHelperController(QueryHelperService queryHelperService, 
                                  SqlHelperService sqlHelperService,
-                                 SummarizationService summarizationService) {
+                                 SummarizationService summarizationService,
+                                 GrokHelperService grokHelperService) {
         this.queryHelperService = queryHelperService;
         this.sqlHelperService = sqlHelperService;
         this.summarizationService = summarizationService;
+        this.grokHelperService = grokHelperService;
     }
     
     @PostMapping("/help")
@@ -108,6 +112,21 @@ public class QueryHelperController {
                 .body(new SummarizationResponse(
                     "Error: " + e.getMessage(), 0, 0
                 ));
+        }
+    }
+    
+    @PostMapping("/grok-help")
+    public ResponseEntity<QueryHelpResponse> helpWithGrok(@RequestBody GrokHelpRequest request) {
+        try {
+            String suggestion = grokHelperService.suggestGrokPattern(
+                request.getSampleLines(),
+                request.getUserRequest()
+            );
+            
+            return ResponseEntity.ok(new QueryHelpResponse(suggestion));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                .body(new QueryHelpResponse("Error: " + e.getMessage()));
         }
     }
     
@@ -241,6 +260,27 @@ public class QueryHelperController {
         
         public void setMaxAnalyzed(int maxAnalyzed) {
             this.maxAnalyzed = maxAnalyzed;
+        }
+    }
+    
+    public static class GrokHelpRequest {
+        private List<String> sampleLines;
+        private String userRequest;
+        
+        public List<String> getSampleLines() {
+            return sampleLines;
+        }
+        
+        public void setSampleLines(List<String> sampleLines) {
+            this.sampleLines = sampleLines;
+        }
+        
+        public String getUserRequest() {
+            return userRequest;
+        }
+        
+        public void setUserRequest(String userRequest) {
+            this.userRequest = userRequest;
         }
     }
 }

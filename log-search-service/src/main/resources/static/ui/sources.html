@@ -299,6 +299,7 @@
         <div class="nav-links">
             <a href="/ui/index.html">🔍 Search</a>
             <a href="/ui/sql.html">🗄️ SQL Query</a>
+            <a href="/ui/lucene-diagnostics.html">🔧 Diagnostics</a>
             <a href="/ui/test-indices.html">🔬 Indices Diagnostic</a>
         </div>
     </div>
@@ -328,6 +329,7 @@
                             Select lines from the log file to test with the parser. 
                             <button type="button" class="secondary" onclick="selectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">Select All</button>
                             <button type="button" class="secondary" onclick="deselectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Deselect All</button>
+                            <button type="button" class="secondary" onclick="showGrokAiHelper()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">🤖 AI Grok Helper</button>
                         </p>
                         <div id="lineSelector" style="background: white; padding: 0.75rem; border-radius: 4px; max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #ddd;"></div>
                         <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: bold;">How selected lines will be parsed:</p>
@@ -358,7 +360,8 @@
                         JSON configuration for regex/grok parsers (leave empty for key-value)
                         <br>
                         <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; font-size: 0.875rem;">📖 Grok Patterns Reference</a> |
-                        <a href="#" onclick="showGrokHelp(); return false;" style="color: #3498db; font-size: 0.875rem;">💡 Quick Examples</a>
+                        <a href="#" onclick="showGrokHelp(); return false;" style="color: #3498db; font-size: 0.875rem;">💡 Quick Examples</a> |
+                        <a href="#" onclick="showGrokAiHelper(); return false;" style="color: #3498db; font-size: 0.875rem;">🤖 AI Helper</a>
                     </div>
                 </div>
                 
@@ -578,6 +581,44 @@
                     <button type="button" class="secondary" onclick="closeEditModal()">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- AI Grok Helper Modal -->
+    <div id="grokAiModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeGrokAiModal()">&times;</span>
+            <h2>🤖 AI Grok Pattern Helper</h2>
+            
+            <p style="margin-bottom: 1rem; color: #666;">
+                The AI will analyze your log samples and suggest an appropriate Grok pattern configuration.
+            </p>
+            
+            <div class="form-group">
+                <label for="aiGrokRequest">Additional Instructions (optional)</label>
+                <textarea id="aiGrokRequest" rows="3" placeholder="e.g., Focus on extracting user and IP fields, or just press 'Get Suggestion' for automatic analysis"></textarea>
+                <div class="form-hint">
+                    Tell the AI what specific fields or patterns you're interested in, or leave blank for general analysis
+                </div>
+            </div>
+            
+            <div id="selectedLinesPreview" style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin: 1rem 0; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.8rem;">
+                <strong>Selected log lines:</strong>
+                <div id="selectedLinesContent" style="margin-top: 0.5rem;"></div>
+            </div>
+            
+            <div id="aiGrokMessage"></div>
+            
+            <div id="aiGrokResult" style="display: none; margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #3498db;">
+                <h3 style="margin-top: 0;">AI Suggestion</h3>
+                <div id="aiGrokSuggestion" style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6;"></div>
+            </div>
+            
+            <div class="button-group" style="margin-top: 1rem;">
+                <button type="button" id="getGrokSuggestionBtn" onclick="getGrokSuggestion()">Get Suggestion</button>
+                <button type="button" class="secondary" onclick="applyGrokSuggestion()">Apply to Config</button>
+                <button type="button" class="secondary" onclick="closeGrokAiModal()">Close</button>
+            </div>
         </div>
     </div>
 
@@ -1580,6 +1621,153 @@
             setTimeout(() => {
                 el.innerHTML = '';
             }, 3000);
+        }
+        
+        // ===== AI Grok Helper Functions =====
+        
+        let lastGrokSuggestion = '';
+        
+        function showGrokAiHelper() {
+            // Get selected lines from preview
+            const selectedCheckboxes = document.querySelectorAll('#lineSelector input[type="checkbox"]:checked');
+            
+            if (selectedCheckboxes.length === 0) {
+                showMessage('addMessage', 'Please load preview and select at least one log line first', 'error');
+                return;
+            }
+            
+            const selectedLines = Array.from(selectedCheckboxes).map(cb => allLoadedLines[parseInt(cb.value)]);
+            
+            // Display selected lines in modal
+            const linesContent = selectedLines.map((line, idx) => 
+                `<div style="border-bottom: 1px solid #ddd; padding: 0.25rem 0; color: #2c3e50;">${idx + 1}. ${escapeHtml(line.substring(0, 150))}${line.length > 150 ? '...' : ''}</div>`
+            ).join('');
+            
+            document.getElementById('selectedLinesContent').innerHTML = linesContent;
+            document.getElementById('aiGrokRequest').value = '';
+            document.getElementById('aiGrokResult').style.display = 'none';
+            document.getElementById('aiGrokMessage').innerHTML = '';
+            lastGrokSuggestion = '';
+            
+            document.getElementById('grokAiModal').style.display = 'block';
+        }
+        
+        function closeGrokAiModal() {
+            document.getElementById('grokAiModal').style.display = 'none';
+        }
+        
+        async function getGrokSuggestion() {
+            const selectedCheckboxes = document.querySelectorAll('#lineSelector input[type="checkbox"]:checked');
+            const selectedLines = Array.from(selectedCheckboxes).map(cb => allLoadedLines[parseInt(cb.value)]);
+            
+            if (selectedLines.length === 0) {
+                showGrokAiMessage('No log lines selected', 'error');
+                return;
+            }
+            
+            const userRequest = document.getElementById('aiGrokRequest').value.trim();
+            const btn = document.getElementById('getGrokSuggestionBtn');
+            
+            btn.disabled = true;
+            btn.textContent = 'Analyzing...';
+            showGrokAiMessage('AI is analyzing your log format...', 'success');
+            
+            try {
+                const response = await fetch('/api/ai/grok-help', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sampleLines: selectedLines,
+                        userRequest: userRequest || null
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to get AI suggestion');
+                }
+                
+                const result = await response.json();
+                lastGrokSuggestion = result.suggestion;
+                
+                document.getElementById('aiGrokSuggestion').innerHTML = convertMarkdownToHtml(result.suggestion);
+                document.getElementById('aiGrokResult').style.display = 'block';
+                document.getElementById('aiGrokMessage').innerHTML = '';
+                
+            } catch (error) {
+                showGrokAiMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Get Suggestion';
+            }
+        }
+        
+        function applyGrokSuggestion() {
+            if (!lastGrokSuggestion) {
+                showGrokAiMessage('No suggestion available. Click "Get Suggestion" first.', 'error');
+                return;
+            }
+            
+            // Try to extract JSON pattern from the suggestion
+            const jsonMatch = lastGrokSuggestion.match(/\{\s*"pattern"\s*:\s*"[^"]+"\s*\}/g);
+            
+            if (jsonMatch && jsonMatch.length > 0) {
+                // Use the first found pattern
+                const pattern = jsonMatch[0];
+                
+                // Validate JSON before applying
+                try {
+                    JSON.parse(pattern);
+                } catch (e) {
+                    showGrokAiMessage('Invalid JSON in suggested pattern. The AI may have used incorrect escaping. Please copy and fix manually.', 'error');
+                    return;
+                }
+                
+                // Set parser type to grok
+                document.getElementById('parserType').value = 'grok';
+                
+                // Set the parser config
+                document.getElementById('parserConfig').value = pattern;
+                
+                // Update preview
+                updatePreview();
+                
+                // Close modal
+                closeGrokAiModal();
+                
+                showMessage('addMessage', 'AI-suggested Grok pattern applied! Check the preview below.', 'success');
+            } else {
+                showGrokAiMessage('Could not extract pattern from suggestion. Please copy it manually.', 'error');
+            }
+        }
+        
+        function showGrokAiMessage(message, type) {
+            const el = document.getElementById('aiGrokMessage');
+            el.innerHTML = `<div class="message ${type}" style="margin-bottom: 0;">${message}</div>`;
+        }
+        
+        // Basic markdown to HTML converter
+        function convertMarkdownToHtml(text) {
+            if (!text) return '';
+            
+            return text
+                // Code blocks with backticks (preserve JSON)
+                .replace(/```json\n([\s\S]*?)```/g, '<pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;">$1</pre>')
+                .replace(/```([\s\S]*?)```/g, '<pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;">$1</pre>')
+                // Inline code
+                .replace(/`([^`]+)`/g, '<code style="background: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 3px; font-family: monospace;">$1</code>')
+                // Headers
+                .replace(/^### (.*$)/gim, '<h4 style="margin-top: 1rem; margin-bottom: 0.5rem; color: #2c3e50;">$1</h4>')
+                .replace(/^## (.*$)/gim, '<h3 style="margin-top: 1rem; margin-bottom: 0.5rem; color: #2c3e50;">$1</h3>')
+                .replace(/^# (.*$)/gim, '<h2 style="margin-top: 1rem; margin-bottom: 0.5rem; color: #2c3e50;">$1</h2>')
+                // Bold
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                // Lists
+                .replace(/^\* (.+)$/gim, '<li style="margin-left: 1.5rem;">$1</li>')
+                .replace(/^- (.+)$/gim, '<li style="margin-left: 1.5rem;">$1</li>')
+                // Line breaks
+                .replace(/\n/g, '<br>');
         }
     </script>
 </body>

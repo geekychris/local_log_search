@@ -5,7 +5,7 @@
     "lastModifiedTime" : 1763323212558,
     "fileSize" : 9166121,
     "fileKey" : "1763107809000:9166121",
-    "lastCheckpointTime" : 1763449751942
+    "lastCheckpointTime" : 1763451918345
   },
   "54f12872-5881-453b-9d15-f29723075a20" : {
     "filePath" : "/Users/chris/code/warp_experiments/local_log_search/service.log",
@@ -13,6 +13,14 @@
     "lastModifiedTime" : 1763441658814,
     "fileSize" : 589039,
     "fileKey" : "1763086720000:589039",
-    "lastCheckpointTime" : 1763449751943
+    "lastCheckpointTime" : 1763451918346
+  },
+  "defcb6b6-4915-4dbd-8473-41301ed188b0" : {
+    "filePath" : "/Users/chris/generator.log",
+    "filePointer" : 9166121,
+    "lastModifiedTime" : 1763451041046,
+    "fileSize" : 9166121,
+    "fileKey" : "1763451041000:9166121",
+    "lastCheckpointTime" : 1763451918346
   }
 }
