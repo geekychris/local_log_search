@@ -33,9 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 import java.util.NoSuchElementException;
 
 /**
@@ -50,6 +48,7 @@ public class LuceneResultIterator implements Iterator<SearchResult> {
     private final IndexSearcher searcher;
     private final ScoreDoc[] scoreDocs;
     private final String indexName;
+    private final Set<String> fieldsToLoad; // null means load all fields
     private int currentIndex = 0;
     
     // Batch cache to reduce Lucene I/O calls
@@ -58,9 +57,14 @@ public class LuceneResultIterator implements Iterator<SearchResult> {
     private int batchSize = 0;
     
     public LuceneResultIterator(IndexSearcher searcher, TopDocs topDocs, String indexName) {
+        this(searcher, topDocs, indexName, null);
+    }
+    
+    public LuceneResultIterator(IndexSearcher searcher, TopDocs topDocs, String indexName, Set<String> fieldsToLoad) {
         this.searcher = searcher;
         this.scoreDocs = topDocs.scoreDocs;
         this.indexName = indexName;
+        this.fieldsToLoad = fieldsToLoad;
     }
     
     @Override
@@ -103,10 +107,17 @@ public class LuceneResultIterator implements Iterator<SearchResult> {
         
         currentBatch = new SearchResult[batchSize];
         
-        // Fetch batch of documents
+        // Fetch batch of documents - use selective field loading if fieldsToLoad is specified
         for (int i = 0; i < batchSize; i++) {
             ScoreDoc scoreDoc = scoreDocs[batchStartIndex + i];
-            Document doc = searcher.doc(scoreDoc.doc);
+            Document doc;
+            if (fieldsToLoad != null && !fieldsToLoad.isEmpty()) {
+                // Only load specified fields - much faster!
+                doc = searcher.doc(scoreDoc.doc, fieldsToLoad);
+            } else {
+                // Load all fields
+                doc = searcher.doc(scoreDoc.doc);
+            }
             currentBatch[i] = documentToSearchResult(doc, indexName, scoreDoc.score);
         }
     }
@@ -118,7 +129,12 @@ public class LuceneResultIterator implements Iterator<SearchResult> {
         SearchResult result = new SearchResult();
         result.setIndexName(indexName);
         result.setScore(score);
-        result.setRawText(doc.get("raw_text"));
+        // For logs, use raw_text; for desktop files, use content
+        String rawText = doc.get("raw_text");
+        if (rawText == null) {
+            rawText = doc.get("content");
+        }
+        result.setRawText(rawText);
         result.setSource(doc.get("source"));
         
         Long timestampMillis = doc.getField("timestamp") != null ? 
@@ -127,11 +143,11 @@ public class LuceneResultIterator implements Iterator<SearchResult> {
             result.setTimestamp(Instant.ofEpochMilli(timestampMillis));
         }
         
-        // Extract all other fields (skip _num variants)
+        // Extract all other fields (skip _num variants and content since it's in rawText)
         Map<String, String> fields = new HashMap<>();
         doc.getFields().forEach(field -> {
             String name = field.name();
-            if (!name.equals("raw_text") && !name.equals("source") && !name.equals("timestamp") 
+            if (!name.equals("raw_text") && !name.equals("content") && !name.equals("source") && !name.equals("timestamp") 
                 && !name.endsWith("_exact") && !name.endsWith("_num")) {
                 fields.put(name, field.stringValue());
             }
