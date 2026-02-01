@@ -699,16 +699,39 @@ public class SearchService {
             return false;
         }
         
-        // Check if it's "count by field" (single field grouping, count only)
-        String args = String.join(" ", statsCmd.getArgs());
-        if (!args.startsWith("count by ")) {
+        List<String> args = statsCmd.getArgs();
+        
+        // Must have at least "count", "by", "field"
+        if (args.size() < 3) {
             return false;
         }
         
-        // Extract the field name
-        String fieldPart = args.substring("count by ".length()).trim();
-        // Should be a single field (no spaces)
-        if (fieldPart.contains(" ")) {
+        // First arg must be "count"
+        if (!args.get(0).equalsIgnoreCase("count")) {
+            return false;
+        }
+        
+        // Second arg must be "by"
+        if (!args.get(1).equalsIgnoreCase("by")) {
+            return false;
+        }
+        
+        // Count the number of fields after "by"
+        // Need to account for comma-separated fields: "queue, level" becomes "queue," and "level"
+        int fieldCount = 0;
+        for (int i = 2; i < args.size(); i++) {
+            String arg = args.get(i);
+            // Split by comma to handle "field1, field2" syntax
+            String[] fields = arg.split(",");
+            for (String field : fields) {
+                if (!field.trim().isEmpty()) {
+                    fieldCount++;
+                }
+            }
+        }
+        
+        // Fast-path only works for SINGLE field grouping
+        if (fieldCount != 1) {
             return false;
         }
         
@@ -826,13 +849,21 @@ public class SearchService {
             if (command.equals("stats")) {
                 // Extract fields from stats command
                 // Format: "count by level" or "avg(duration) by operation"
+                // Also supports: "count by queue, level" (comma-separated)
                 if (args.contains(" by ")) {
                     String[] parts = args.split(" by ", 2);
                     if (parts.length > 1) {
-                        // Add group-by fields
+                        // Add group-by fields (handle both space and comma separation)
                         String[] groupFields = parts[1].trim().split("\\s+");
                         for (String field : groupFields) {
-                            fields.add(field.trim());
+                            // Split by comma to handle "field1, field2" syntax
+                            String[] subFields = field.split(",");
+                            for (String subField : subFields) {
+                                String trimmed = subField.trim();
+                                if (!trimmed.isEmpty()) {
+                                    fields.add(trimmed);
+                                }
+                            }
                         }
                     }
                     // Add aggregation fields
@@ -851,7 +882,14 @@ public class SearchService {
                     if (parts.length > 1) {
                         String[] groupFields = parts[1].trim().split("\\s+");
                         for (String field : groupFields) {
-                            fields.add(field.trim());
+                            // Split by comma to handle "field1, field2" syntax
+                            String[] subFields = field.split(",");
+                            for (String subField : subFields) {
+                                String trimmed = subField.trim();
+                                if (!trimmed.isEmpty()) {
+                                    fields.add(trimmed);
+                                }
+                            }
                         }
                     }
                     String aggPart = parts[0];

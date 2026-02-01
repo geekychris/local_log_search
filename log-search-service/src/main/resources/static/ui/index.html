@@ -2574,6 +2574,26 @@
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Time Chart';
                     renderTimeChart(data.pipeResult);
                     setExportData(data.pipeResult, 'TIMECHART');
+                } else if (data.resultType === 'EXPORT') {
+                    // Export result - show success message
+                    messageEl.innerHTML = `
+                        <div class="success" style="padding: 1.5rem;">
+                            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem;">✅ Export Successful</h3>
+                            <p style="margin: 0.5rem 0;">${data.message}</p>
+                            <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                                <strong>Table:</strong> ${data.tableName}<br>
+                                <strong>Rows Exported:</strong> ${data.rowsExported.toLocaleString()}<br>
+                                <strong>Total Rows in Table:</strong> ${data.totalRows.toLocaleString()}<br>
+                                <strong>Columns:</strong> ${data.columns.join(', ')}
+                            </div>
+                            <p style="margin-top: 1rem;">
+                                <a href="/ui/sql.html" style="color: #3498db; text-decoration: none; font-weight: 500;">→ Query this table in SQL Query UI</a>
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('totalHits').textContent = 'Export Complete';
+                    resultsEl.innerHTML = '';
+                    document.getElementById('pagination').style.display = 'none';
                 } else if (data.results && data.results.length > 0) {
                     // Regular log results
                     messageEl.innerHTML = `<div class="success">Found ${data.totalHits} results</div>`;

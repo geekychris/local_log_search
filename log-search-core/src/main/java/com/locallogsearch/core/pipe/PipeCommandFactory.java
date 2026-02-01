@@ -63,6 +63,7 @@ public class PipeCommandFactory {
     
     private static StatsCommand createStatsCommand(PipeQueryParser.PipeCommandSpec spec) {
         // Parse: stats count avg(duration) by user operation
+        // Also supports: stats count by queue, level (comma-separated fields)
         List<String> args = spec.getArgs();
         List<String> aggregations = new ArrayList<>();
         List<String> groupByFields = new ArrayList<>();
@@ -72,7 +73,14 @@ public class PipeCommandFactory {
             if (arg.equalsIgnoreCase("by")) {
                 parsingBy = true;
             } else if (parsingBy) {
-                groupByFields.add(arg);
+                // Split by comma in case multiple fields are specified as "field1, field2"
+                String[] fields = arg.split(",");
+                for (String field : fields) {
+                    String trimmed = field.trim();
+                    if (!trimmed.isEmpty()) {
+                        groupByFields.add(trimmed);
+                    }
+                }
             } else {
                 // It's an aggregation
                 aggregations.add(arg);
@@ -90,6 +98,7 @@ public class PipeCommandFactory {
     private static ChartCommand createChartCommand(PipeQueryParser.PipeCommandSpec spec) {
         // Parse: chart count by user
         // Parse: chart type=bar sum(duration) by operation
+        // Also supports: chart count by queue, level (comma-separated fields)
         String chartType = spec.getParam("type", "bar");
         
         List<String> args = spec.getArgs();
@@ -101,7 +110,14 @@ public class PipeCommandFactory {
             if (arg.equalsIgnoreCase("by")) {
                 parsingBy = true;
             } else if (parsingBy) {
-                groupByFields.add(arg);
+                // Split by comma in case multiple fields are specified as "field1, field2"
+                String[] fields = arg.split(",");
+                for (String field : fields) {
+                    String trimmed = field.trim();
+                    if (!trimmed.isEmpty()) {
+                        groupByFields.add(trimmed);
+                    }
+                }
             } else {
                 aggregations.add(arg);
             }

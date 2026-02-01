@@ -151,10 +151,12 @@ public class StatsCommand implements PipeCommand {
     
     private String getGroupKey(SearchResult result) {
         StringBuilder key = new StringBuilder();
+        int fieldIndex = 0;
         for (String field : groupByFields) {
-            if (key.length() > 0) key.append("\u0000"); // Use null character as delimiter
+            if (fieldIndex > 0) key.append("\u0000"); // Use null character as delimiter
             String value = result.getFields().getOrDefault(field, "");
             key.append(value);
+            fieldIndex++;
         }
         return key.toString();
     }
