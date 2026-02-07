@@ -34,7 +34,7 @@
             gap: 1rem;
         }
         .header-logo {
-            height: 50px;
+            height: 100px;
             width: auto;
         }
         .header h1 {
@@ -61,6 +61,8 @@
         .container {
             margin: 0;
             padding: 2rem;
+            max-width: 100%;
+            overflow-x: hidden;
         }
         .card {
             background: white;
@@ -78,6 +80,8 @@
             display: grid;
             grid-template-columns: 1fr 300px;
             gap: 1.5rem;
+            max-width: 100%;
+            overflow-x: hidden;
         }
         @media (max-width: 1024px) {
             .two-col {
@@ -150,6 +154,8 @@
             margin-bottom: 0;
             border-bottom: 1px solid #ddd;
             border-left: 3px solid #3498db;
+            max-width: 100%;
+            overflow-x: hidden;
         }
         .result-item:last-child {
             border-bottom: none;
@@ -164,6 +170,9 @@
             font-size: 0.9rem;
             color: #2c3e50;
             word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+            overflow-x: auto;
         }
         .result-fields {
             margin-top: 0.5rem;
@@ -369,6 +378,26 @@
         }
         .copy-btn:hover {
             background: #2980b9;
+        }
+        .file-action-btn {
+            padding: 4px 8px;
+            margin-left: 8px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .file-action-btn:hover {
+            background: #2980b9;
+        }
+        .file-action-btn.view-file {
+            background: #27ae60;
+            font-weight: bold;
+        }
+        .file-action-btn.view-file:hover {
+            background: #229954;
         }
         .time-picker-btn {
             background: #16a085;
@@ -810,6 +839,7 @@
             <a href="#" class="nav-link active" data-page="search">Search</a>
             <a href="#" class="nav-link" data-page="examples">Query Examples</a>
             <a href="/ui/sources.html" class="nav-link">📁 Log Sources</a>
+            <a href="/ui/desktop-sources.html" class="nav-link">💻 Desktop Sources</a>
             <a href="/ui/sql.html" class="nav-link">🗄️ SQL Query</a>
             <a href="/ui/lucene-diagnostics.html" class="nav-link">🔧 Diagnostics</a>
         </div>
@@ -844,6 +874,16 @@
                                 </div>
                                 <div class="query-hint">
                                     Use field:value for exact matches, field:[min TO max] for ranges. Pipe commands (|) enable aggregations: | stats, | chart, | timechart. See Query Examples for details.
+                                </div>
+                                <div style="margin-top: 0.5rem; display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;">
+                                        <input type="checkbox" id="desktopFilesOnly" style="margin-right: 0.5rem; cursor: pointer;">
+                                        💻 Desktop files only
+                                    </label>
+                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;">
+                                        <input type="checkbox" id="enableFacets" checked style="margin-right: 0.5rem; cursor: pointer;">
+                                        📊 Enable facets
+                                    </label>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1992,9 +2032,13 @@
                 const num = value.substring(0, value.length - 1).trim();
                 constraint = `${field}:[${num} TO *]`;
             } else {
-                // Regular value - check if it needs quotes (contains spaces or special chars)
-                if (value.includes(' ') || value.includes(':') || value.includes('&')) {
-                    constraint = `${field}:"${value}"`;
+                // Regular value - check if it needs quotes (contains spaces or special Lucene chars)
+                // Always quote if contains: spaces, :, /, \, -, +, &, |, !, (, ), {, }, [, ], ^, ", ~, *, ?
+                const needsQuotes = /[\s:\/\\+&|!(){}\[\]^"~*?-]/.test(value);
+                if (needsQuotes) {
+                    // Escape any quotes in the value
+                    const escapedValue = value.replace(/"/g, '\\"');
+                    constraint = `${field}:"${escapedValue}"`;
                 } else {
                     constraint = `${field}:${value}`;
                 }
@@ -2037,12 +2081,13 @@
             const facetsCard = document.getElementById('facetsCard');
             const facetsList = document.getElementById('facetsList');
             
+            // Always show the facets card, even if empty
+            facetsCard.style.display = 'block';
+            
             if (!facets || Object.keys(facets).length === 0) {
-                facetsCard.style.display = 'none';
+                facetsList.innerHTML = '<div style="padding: 1rem; color: #666; font-style: italic; text-align: center;">No facets available for this search</div>';
                 return;
             }
-            
-            facetsCard.style.display = 'block';
             
             const MAX_SHOW = 10;
             let html = '';
@@ -2395,6 +2440,17 @@
             let query = document.getElementById('query').value.trim();
             const sortField = document.getElementById('sortField').value;
             const sortOrder = document.getElementById('sortOrder').value;
+            const desktopFilesOnly = document.getElementById('desktopFilesOnly').checked;
+            const enableFacets = document.getElementById('enableFacets').checked;
+            
+            // Add desktop files filter if checkbox is checked
+            if (desktopFilesOnly) {
+                if (query && query !== '*' && query !== '*:*') {
+                    query = `(${query}) AND doc_type:desktop`;
+                } else {
+                    query = 'doc_type:desktop';
+                }
+            }
             
             const messageEl = document.getElementById('message');
             const resultsEl = document.getElementById('results');
@@ -2445,7 +2501,7 @@
                     pageSize: 50,
                     sortField: sortField,
                     sortDescending: sortOrder === 'desc',
-                    includeFacets: true
+                    includeFacets: enableFacets
                 };
                 
                 // Add timestamp range if specified
@@ -2487,22 +2543,57 @@
                 // Check result type and render accordingly
                 if (data.resultType === 'TABLE') {
                     const sourceHits = data.pipeResult.sourceHits || 0;
-                    messageEl.innerHTML = `<div class="success">Table result (${sourceHits} source hits)</div>`;
+                    let msg = `<div class="success">Table result (${sourceHits} source hits)</div>`;
+                    // Add sampling warning if applicable
+                    if (data.pipeSampleSize && data.pipeSampleSize < data.totalHits) {
+                        msg += `<div class="warning" style="margin-top: 0.5rem; background: #fff3cd; color: #856404; padding: 0.75rem; border-radius: 4px; border-left: 3px solid #ffc107;">⚠️ Stats calculated from ${data.pipeSampleSize.toLocaleString()} of ${data.totalHits.toLocaleString()} matching documents</div>`;
+                    }
+                    messageEl.innerHTML = msg;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Table';
                     renderTable(data.pipeResult);
                     setExportData(data.pipeResult, 'TABLE');
                 } else if (data.resultType === 'CHART') {
                     const sourceHits = data.pipeResult.sourceHits || 0;
-                    messageEl.innerHTML = `<div class="success">Chart result (${sourceHits} source hits)</div>`;
+                    let msg = `<div class="success">Chart result (${sourceHits} source hits)</div>`;
+                    // Add sampling warning if applicable
+                    if (data.pipeSampleSize && data.pipeSampleSize < data.totalHits) {
+                        msg += `<div class="warning" style="margin-top: 0.5rem; background: #fff3cd; color: #856404; padding: 0.75rem; border-radius: 4px; border-left: 3px solid #ffc107;">⚠️ Stats calculated from ${data.pipeSampleSize.toLocaleString()} of ${data.totalHits.toLocaleString()} matching documents</div>`;
+                    }
+                    messageEl.innerHTML = msg;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Chart';
                     renderChart(data.pipeResult);
                     setExportData(data.pipeResult, 'CHART');
                 } else if (data.resultType === 'TIMECHART') {
                     const sourceHits = data.pipeResult.sourceHits || 0;
-                    messageEl.innerHTML = `<div class="success">Time chart result (${sourceHits} source hits)</div>`;
+                    let msg = `<div class="success">Time chart result (${sourceHits} source hits)</div>`;
+                    // Add sampling warning if applicable
+                    if (data.pipeSampleSize && data.pipeSampleSize < data.totalHits) {
+                        msg += `<div class="warning" style="margin-top: 0.5rem; background: #fff3cd; color: #856404; padding: 0.75rem; border-radius: 4px; border-left: 3px solid #ffc107;">⚠️ Stats calculated from ${data.pipeSampleSize.toLocaleString()} of ${data.totalHits.toLocaleString()} matching documents</div>`;
+                    }
+                    messageEl.innerHTML = msg;
                     document.getElementById('totalHits').textContent = sourceHits > 0 ? `${sourceHits} source hits` : 'Time Chart';
                     renderTimeChart(data.pipeResult);
                     setExportData(data.pipeResult, 'TIMECHART');
+                } else if (data.resultType === 'EXPORT') {
+                    // Export result - show success message
+                    messageEl.innerHTML = `
+                        <div class="success" style="padding: 1.5rem;">
+                            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem;">✅ Export Successful</h3>
+                            <p style="margin: 0.5rem 0;">${data.message}</p>
+                            <div style="margin-top: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                                <strong>Table:</strong> ${data.tableName}<br>
+                                <strong>Rows Exported:</strong> ${data.rowsExported.toLocaleString()}<br>
+                                <strong>Total Rows in Table:</strong> ${data.totalRows.toLocaleString()}<br>
+                                <strong>Columns:</strong> ${data.columns.join(', ')}
+                            </div>
+                            <p style="margin-top: 1rem;">
+                                <a href="/ui/sql.html" style="color: #3498db; text-decoration: none; font-weight: 500;">→ Query this table in SQL Query UI</a>
+                            </p>
+                        </div>
+                    `;
+                    document.getElementById('totalHits').textContent = 'Export Complete';
+                    resultsEl.innerHTML = '';
+                    document.getElementById('pagination').style.display = 'none';
                 } else if (data.results && data.results.length > 0) {
                     // Regular log results
                     messageEl.innerHTML = `<div class="success">Found ${data.totalHits} results</div>`;
@@ -2513,8 +2604,16 @@
                     lastSearchQuery = query;
                     
                     // Render facets from server
-                    if (data.facets) {
-                        renderFacets(data.facets, data.facetSampleSize, data.totalHits);
+                    if (enableFacets) {
+                        if (data.facets) {
+                            renderFacets(data.facets, data.facetSampleSize, data.totalHits);
+                        }
+                    } else {
+                        // Show disabled state
+                        const facetsCard = document.getElementById('facetsCard');
+                        const facetsList = document.getElementById('facetsList');
+                        facetsCard.style.display = 'block';
+                        facetsList.innerHTML = '<div style="padding: 1rem; color: #999; font-style: italic; text-align: center;">Facets disabled<br><small style="font-size: 0.75rem;">Enable in search options</small></div>';
                     }
                     
                     // Render results
@@ -2523,56 +2622,123 @@
                         const resultDiv = document.createElement('div');
                         resultDiv.className = 'result-item';
                         
-                        const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : 'N/A';
-                        const timestampISO = result.timestamp || null;
+                        // Check if this is a desktop file result
+                        const isDesktopFile = result.fields && result.fields.doc_type === 'desktop';
                         
-                        // Parse raw text and make key=value pairs clickable
-                        let processedText = result.rawText || '';
-                        if (result.fields && Object.keys(result.fields).length > 0) {
-                            // Sort by length descending to avoid partial matches
-                            const sortedFields = Object.entries(result.fields).sort((a, b) => b[0].length - a[0].length);
+                        if (isDesktopFile) {
+                            // Desktop file result rendering
+                            const filePath = result.fields.file_path || 'Unknown';
+                            const fileName = result.fields.file_name || 'Unknown';
+                            const fileExt = result.fields.file_extension || '';
+                            const fileSize = result.fields.file_size ? formatFileSize(parseInt(result.fields.file_size)) : 'Unknown';
+                            const modifiedDate = result.fields.modified_date ? new Date(parseInt(result.fields.modified_date)).toLocaleString() : 'N/A';
                             
-                            for (const [key, value] of sortedFields) {
-                                // Escape special regex characters in key and value
-                                const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                                const keyEscaped = escapeRegex(key);
-                                const valueEscaped = escapeRegex(value);
-                                
-                                // Match key=value or key:value patterns
-                                const regex = new RegExp(`(${keyEscaped}[:=])(${valueEscaped})`, 'g');
-                                processedText = processedText.replace(regex, 
-                                    `$1<span class="field-tag-inline" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">$2</span>`);
+                            const scoreDisplay = (typeof result.score === 'number' && !isNaN(result.score)) 
+                                ? result.score.toFixed(2) 
+                                : '-';
+                            
+                            // Prepare content for expansion
+                            const fullContent = result.rawText || '';
+                            const contentSnippet = fullContent.length > 300 ? fullContent.substring(0, 300) + '...' : fullContent;
+                            const hasMoreContent = fullContent.length > 300;
+                            
+                            // Generate unique ID for this result
+                            const resultId = 'result-' + Math.random().toString(36).substr(2, 9);
+                            
+                            // Build fields display for metadata fields
+                            let fieldsHtml = '';
+                            if (result.fields && Object.keys(result.fields).length > 0) {
+                                const metadataFields = Object.entries(result.fields)
+                                    .filter(([key]) => !['doc_type', 'file_path', 'file_name', 'file_extension', 'file_size', 'modified_date', 'created_date', 'content'].includes(key))
+                                    .map(([key, value]) => 
+                                        `<span class="field-tag" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">${key}=${value}</span>`
+                                    )
+                                    .join(' ');
+                                if (metadataFields) {
+                                    fieldsHtml = `<div class="result-fields">${metadataFields}</div>`;
+                                }
                             }
+                            
+                            // Get mime type for viewing
+                            const mimeType = result.fields.mime_type || '';
+                            
+                            // Build file action buttons
+                            const fileActions = `
+                                <div class="file-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button class="file-action-btn view-file" onclick="viewFile('${filePath.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}', '${mimeType}')">👁️ View File</button>
+                                    <button class="file-action-btn" onclick="copyToClipboard('${filePath.replace(/'/g, "\\'")}')">📋 Copy Path</button>
+                                    <button class="file-action-btn" onclick="openFileLocation('${filePath.replace(/'/g, "\\'")}')">🔗 Open in Browser</button>
+                                    ${hasMoreContent ? `<button class="file-action-btn" onclick="toggleContent('${resultId}')">📄 Show More</button>` : ''}
+                                </div>
+                            `;
+                            
+                            resultDiv.innerHTML = `
+                                <div class="result-meta">
+                                    <strong>📄 File:</strong> ${filePath} | 
+                                    <strong>Size:</strong> ${fileSize} | 
+                                    <strong>Modified:</strong> ${modifiedDate} | 
+                                    <strong>Score:</strong> ${scoreDisplay}
+                                </div>
+                                <div class="result-text">
+                                    <div id="${resultId}-snippet">${contentSnippet}</div>
+                                    <div id="${resultId}-full" style="display: none;">${fullContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                                </div>
+                                ${fieldsHtml}
+                                ${fileActions}
+                            `;
+                        } else {
+                            // Log entry result rendering (existing logic)
+                            const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : 'N/A';
+                            const timestampISO = result.timestamp || null;
+                            
+                            // Parse raw text and make key=value pairs clickable
+                            let processedText = result.rawText || '';
+                            if (result.fields && Object.keys(result.fields).length > 0) {
+                                // Sort by length descending to avoid partial matches
+                                const sortedFields = Object.entries(result.fields).sort((a, b) => b[0].length - a[0].length);
+                                
+                                for (const [key, value] of sortedFields) {
+                                    // Escape special regex characters in key and value
+                                    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                    const keyEscaped = escapeRegex(key);
+                                    const valueEscaped = escapeRegex(value);
+                                    
+                                    // Match key=value or key:value patterns
+                                    const regex = new RegExp(`(${keyEscaped}[:=])(${valueEscaped})`, 'g');
+                                    processedText = processedText.replace(regex, 
+                                        `$1<span class="field-tag-inline" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">$2</span>`);
+                                }
+                            }
+                            
+                            const timestampHtml = timestampISO 
+                                ? `<span class="timestamp-clickable" data-timestamp="${timestampISO}" title="Click to refine search by time">${timestamp}</span>`
+                                : timestamp;
+                            
+                            const scoreDisplay = (typeof result.score === 'number' && !isNaN(result.score)) 
+                                ? result.score.toFixed(2) 
+                                : '-';
+                            
+                            // Build fields display for all fields (including transformed)
+                            let fieldsHtml = '';
+                            if (result.fields && Object.keys(result.fields).length > 0) {
+                                const fieldTags = Object.entries(result.fields)
+                                    .map(([key, value]) => 
+                                        `<span class="field-tag" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">${key}=${value}</span>`
+                                    )
+                                    .join(' ');
+                                fieldsHtml = `<div class="result-fields">${fieldTags}</div>`;
+                            }
+                            
+                            resultDiv.innerHTML = `
+                                <div class="result-meta">
+                                    <strong>Time:</strong> ${timestampHtml} | 
+                                    <strong>Index:</strong> ${result.indexName} | 
+                                    <strong>Score:</strong> ${scoreDisplay}
+                                </div>
+                                <div class="result-text">${processedText}</div>
+                                ${fieldsHtml}
+                            `;
                         }
-                        
-                        const timestampHtml = timestampISO 
-                            ? `<span class="timestamp-clickable" data-timestamp="${timestampISO}" title="Click to refine search by time">${timestamp}</span>`
-                            : timestamp;
-                        
-                        const scoreDisplay = (typeof result.score === 'number' && !isNaN(result.score)) 
-                            ? result.score.toFixed(2) 
-                            : '-';
-                        
-                        // Build fields display for all fields (including transformed)
-                        let fieldsHtml = '';
-                        if (result.fields && Object.keys(result.fields).length > 0) {
-                            const fieldTags = Object.entries(result.fields)
-                                .map(([key, value]) => 
-                                    `<span class="field-tag" data-field="${key}" data-value="${value}" title="Click to add ${key}:${value} to query">${key}=${value}</span>`
-                                )
-                                .join(' ');
-                            fieldsHtml = `<div class="result-fields">${fieldTags}</div>`;
-                        }
-                        
-                        resultDiv.innerHTML = `
-                            <div class="result-meta">
-                                <strong>Time:</strong> ${timestampHtml} | 
-                                <strong>Index:</strong> ${result.indexName} | 
-                                <strong>Score:</strong> ${scoreDisplay}
-                            </div>
-                            <div class="result-text">${processedText}</div>
-                            ${fieldsHtml}
-                        `;
                         
                         resultsEl.appendChild(resultDiv);
                     });
@@ -3101,6 +3267,87 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 10) / 10 + ' ' + sizes[i];
+        }
+        
+        // Desktop file action functions
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Path copied to clipboard: ' + text);
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+        
+        function openFileLocation(filePath) {
+            // Open file via HTTP in new tab
+            const encodedPath = encodeURIComponent(filePath);
+            const viewUrl = `/api/desktop-sources/view-file?path=${encodedPath}`;
+            window.open(viewUrl, '_blank');
+        }
+        
+        function toggleContent(resultId) {
+            const snippetEl = document.getElementById(resultId + '-snippet');
+            const fullEl = document.getElementById(resultId + '-full');
+            const button = event.target;
+            
+            if (fullEl.style.display === 'none') {
+                snippetEl.style.display = 'none';
+                fullEl.style.display = 'block';
+                button.textContent = '📄 Show Less';
+            } else {
+                snippetEl.style.display = 'block';
+                fullEl.style.display = 'none';
+                button.textContent = '📄 Show More';
+            }
+        }
+        
+        function viewFile(filePath, mimeType) {
+            // URL encode the file path
+            const encodedPath = encodeURIComponent(filePath);
+            const viewUrl = `/api/desktop-sources/view-file?path=${encodedPath}`;
+            
+            // Get file name for display
+            const fileName = filePath.split('/').pop();
+            
+            // For Office documents, download instead of viewing
+            if (mimeType && (mimeType.includes('word') || mimeType.includes('excel') || 
+                       mimeType.includes('powerpoint') || mimeType.includes('officedocument'))) {
+                const a = document.createElement('a');
+                a.href = viewUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+            
+            // For viewable files (PDF, images, text), open in popup window
+            const screenWidth = window.screen.width;
+            const screenHeight = window.screen.height;
+            const popupWidth = Math.min(1200, screenWidth * 0.8);
+            const popupHeight = Math.min(900, screenHeight * 0.8);
+            const left = (screenWidth - popupWidth) / 2;
+            const top = (screenHeight - popupHeight) / 2;
+            
+            const popupFeatures = `width=${popupWidth},height=${popupHeight},left=${left},top=${top},` +
+                                 `resizable=yes,scrollbars=yes,status=yes,toolbar=yes,menubar=yes,location=yes`;
+            
+            // Open file in popup window
+            const popup = window.open(viewUrl, `FileViewer_${Date.now()}`, popupFeatures);
+            
+            if (!popup) {
+                alert('Popup blocked! Please allow popups for this site and try again.');
+            } else {
+                popup.focus();
+            }
         }
         
         // Parse URL parameters on load

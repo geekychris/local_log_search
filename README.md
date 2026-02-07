@@ -71,6 +71,7 @@ For exports to the database we provide a simple SQL interface that lets you quer
 
 ### Core Capabilities
 - **Real-time Log Tailing** - Monitor multiple log files simultaneously with automatic detection of new entries
+- **Desktop File Search** - Index and search static files (PDFs, Office docs, JSON, XML, Markdown, etc.) with smart re-indexing
 - **Powerful Lucene Search** - Full-text search with field queries, wildcards, ranges, and boolean operators
 - **Multiple Index Support** - Organize logs into separate indices for different sources or applications
 - **Flexible Parsing** - Support for key=value, regex, Grok patterns, and custom Java parsers
@@ -87,7 +88,7 @@ For exports to the database we provide a simple SQL interface that lets you quer
 
 ### User Interface
 - **Modern Web UI** - Clean, responsive interface with dark mode support
-- **Multiple Views** - Search, Query Examples, Log Sources configuration, SQL Query interface
+- **Multiple Views** - Search, Query Examples, Log Sources, Desktop Sources, SQL Query interface
 - **Real-time Charts** - Bar charts, pie charts, and time-series visualizations
 - **Export Options** - CSV, JSON, PDF (for charts), and database table exports
 - **Visual Time Picker** - Quick time range selection with presets (last hour, 24h, 7d, custom)
@@ -329,6 +330,43 @@ Configure which log files to monitor:
 3. **Live Preview** - Select log lines and test parser configurations
 4. **Active Sources** - View and manage existing log sources
 5. **Index Metrics** - Monitor document counts and index sizes
+
+#### Desktop Sources Page
+
+Index and search static files on your desktop or filesystem:
+
+1. **Add Desktop Source** - Specify a root directory to index recursively
+2. **File Patterns** - Configure include/exclude patterns (e.g., `*.pdf`, `*.json`)
+3. **File Size Limits** - Set max file size and max indexed content per file
+4. **Smart Re-indexing** - Only re-indexes files that have changed (based on modification time and size)
+5. **Supported File Types**:
+   - **Plain Text**: `.txt`, `.log`, `.md`, `.java`, `.py`, `.js`, etc.
+   - **PDFs**: Extracts text content from PDF documents
+   - **Office Documents**: `.docx`, `.xlsx`, `.pptx` (Word, Excel, PowerPoint)
+   - **Structured Data**: `.json`, `.xml`, `.csv` (extracts fields)
+   - **Markdown**: `.md` files with proper parsing
+   - **Binary**: Any binary file (indexes metadata only)
+
+**Example Use Cases:**
+- Index project documentation folders
+- Search through downloaded PDFs and papers
+- Find content in Excel spreadsheets and Word documents
+- Search JSON configuration files across multiple projects
+
+**Search Examples:**
+```
+# Search in file content
+content:"project architecture"
+
+# Find specific file types
+file_extension:pdf
+
+# Search by file path
+file_path:"/Users/*/Documents/*"
+
+# Combine filters
+content:database AND file_extension:md
+```
 
 ### Search Syntax
 

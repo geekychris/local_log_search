@@ -25,6 +25,7 @@
 package com.locallogsearch.core.index;
 
 import com.locallogsearch.core.config.IndexConfig;
+import com.locallogsearch.core.model.DocumentEntry;
 import com.locallogsearch.core.model.LogEntry;
 import com.locallogsearch.core.truncation.TruncationConfig;
 import com.locallogsearch.core.truncation.TruncationPolicy;
@@ -82,6 +83,9 @@ public class IndexManager implements AutoCloseable {
         
         Document doc = new Document();
         
+        // Mark as log entry
+        doc.add(new StringField("doc_type", "log", Field.Store.YES));
+        
         // Store raw text
         doc.add(new TextField("raw_text", entry.getRawText(), Field.Store.YES));
         
@@ -125,6 +129,84 @@ public class IndexManager implements AutoCloseable {
         }
         
         // Process document with FacetsConfig to properly index facet fields
+        Document processedDoc = facetsConfig.build(doc);
+        writer.addDocument(processedDoc);
+    }
+    
+    /**
+     * Index a desktop document/file entry.
+     * 
+     * @param entry the document entry to index
+     * @throws IOException if an I/O error occurs
+     */
+    public void indexDocumentEntry(DocumentEntry entry) throws IOException {
+        String indexName = entry.getIndexName();
+        IndexWriter writer = getOrCreateWriter(indexName);
+        
+        Document doc = new Document();
+        
+        // Mark as desktop document
+        doc.add(new StringField("doc_type", "desktop", Field.Store.YES));
+        
+        // Store file path and name
+        doc.add(new StringField("file_path", entry.getFilePath(), Field.Store.YES));
+        doc.add(new TextField("file_name", entry.getFileName(), Field.Store.YES));
+        doc.add(new StringField("file_extension", entry.getFileExtension(), Field.Store.YES));
+        
+        // Store file content as searchable text
+        if (entry.getContent() != null && !entry.getContent().isEmpty()) {
+            doc.add(new TextField("content", entry.getContent(), Field.Store.YES));
+        }
+        
+        // Store file size
+        doc.add(new LongPoint("file_size", entry.getFileSize()));
+        doc.add(new StoredField("file_size", entry.getFileSize()));
+        doc.add(new NumericDocValuesField("file_size", entry.getFileSize()));
+        
+        // Store created and modified dates
+        if (entry.getCreatedDate() != null) {
+            doc.add(new LongPoint("created_date", entry.getCreatedDate().toEpochMilli()));
+            doc.add(new StoredField("created_date", entry.getCreatedDate().toEpochMilli()));
+        }
+        
+        if (entry.getModifiedDate() != null) {
+            doc.add(new LongPoint("modified_date", entry.getModifiedDate().toEpochMilli()));
+            doc.add(new StoredField("modified_date", entry.getModifiedDate().toEpochMilli()));
+            doc.add(new NumericDocValuesField("modified_date", entry.getModifiedDate().toEpochMilli()));
+        }
+        
+        // Store metadata fields
+        for (Map.Entry<String, String> meta : entry.getMetadata().entrySet()) {
+            String fieldName = "meta_" + meta.getKey();
+            String fieldValue = meta.getValue();
+            
+            doc.add(new TextField(fieldName, fieldValue, Field.Store.YES));
+            
+            // Add facets for common metadata
+            if (fieldValue.length() <= 100) {
+                doc.add(new SortedSetDocValuesFacetField(fieldName, fieldValue));
+                facetsConfig.setMultiValued(fieldName, true);
+            }
+        }
+        
+        // Store extracted fields from structured documents (CSV headers, etc.)
+        // BUT don't create facets for them to avoid facet explosion
+        for (Map.Entry<String, String> field : entry.getExtractedFields().entrySet()) {
+            String fieldName = field.getKey();
+            String fieldValue = field.getValue();
+            
+            // Store as searchable text field only
+            doc.add(new TextField(fieldName, fieldValue, Field.Store.YES));
+            // Don't add facets or exact matches to avoid cluttering the UI
+        }
+        
+        // Add facet for file extension
+        if (entry.getFileExtension() != null && !entry.getFileExtension().isEmpty()) {
+            doc.add(new SortedSetDocValuesFacetField("file_extension", entry.getFileExtension()));
+            facetsConfig.setMultiValued("file_extension", true);
+        }
+        
+        // Process document with FacetsConfig
         Document processedDoc = facetsConfig.build(doc);
         writer.addDocument(processedDoc);
     }

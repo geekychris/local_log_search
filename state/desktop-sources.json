@@ -1,0 +1,42 @@
+{
+  "31646504-09f1-4009-90cf-8ce1f7a5ec10" : {
+    "id" : "31646504-09f1-4009-90cf-8ce1f7a5ec10",
+    "rootPath" : "/Users/chris/Documents",
+    "indexName" : "my-docs",
+    "enabled" : true,
+    "includePatterns" : [ ],
+    "excludePatterns" : [ "**/node_modules/**", "**/.git/**", "**/.svn/**", "**/.hg/**", "**/target/**", "**/build/**", "**/.idea/**", "**/.vscode/**" ],
+    "maxFileSizeBytes" : 10485760,
+    "maxIndexedContentBytes" : 1048576
+  },
+  "9b6a94fb-5a2c-45bc-b290-ec23335f2f2e" : {
+    "id" : "9b6a94fb-5a2c-45bc-b290-ec23335f2f2e",
+    "rootPath" : "/tmp/test-desktop-search",
+    "indexName" : "test-desktop",
+    "enabled" : true,
+    "includePatterns" : [ "*.txt", "*.json" ],
+    "excludePatterns" : [ ],
+    "maxFileSizeBytes" : 10485760,
+    "maxIndexedContentBytes" : 1048576
+  },
+  "06f1cfc3-70f5-474b-a351-ec4389291bc4" : {
+    "id" : "06f1cfc3-70f5-474b-a351-ec4389291bc4",
+    "rootPath" : "/Users/chris/Documents",
+    "indexName" : "my-docs",
+    "enabled" : true,
+    "includePatterns" : [ ],
+    "excludePatterns" : [ "**/node_modules/**", "**/.git/**", "**/.svn/**", "**/.hg/**", "**/target/**", "**/build/**", "**/.idea/**", "**/.vscode/**" ],
+    "maxFileSizeBytes" : 10485760,
+    "maxIndexedContentBytes" : 1048576
+  },
+  "2980fe7c-5286-4649-ba8a-e4a658f903e4" : {
+    "id" : "2980fe7c-5286-4649-ba8a-e4a658f903e4",
+    "rootPath" : "/tmp/test-desktop-search",
+    "indexName" : "test-desktop",
+    "enabled" : true,
+    "includePatterns" : [ "*.txt", "*.json" ],
+    "excludePatterns" : [ ],
+    "maxFileSizeBytes" : 10485760,
+    "maxIndexedContentBytes" : 1048576
+  }
+}

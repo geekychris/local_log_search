@@ -39,6 +39,7 @@ public class SearchRequest {
     private Long timestampFrom;
     private Long timestampTo;
     private Map<String, FacetBucketConfig> facetBuckets;
+    private Integer pipeQueryLimit; // Limit for pipe queries (stats, chart) - null means use default (1M)
     
     public SearchRequest() {
         this.page = 0;
@@ -133,6 +134,14 @@ public class SearchRequest {
     
     public void setFacetBuckets(Map<String, FacetBucketConfig> facetBuckets) {
         this.facetBuckets = facetBuckets;
+    }
+    
+    public Integer getPipeQueryLimit() {
+        return pipeQueryLimit;
+    }
+    
+    public void setPipeQueryLimit(Integer pipeQueryLimit) {
+        this.pipeQueryLimit = pipeQueryLimit;
     }
     
     /**

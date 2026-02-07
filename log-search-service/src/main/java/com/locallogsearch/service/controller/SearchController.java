@@ -27,6 +27,7 @@ package com.locallogsearch.service.controller;
 import com.locallogsearch.core.pipe.PipeResult;
 import com.locallogsearch.core.search.*;
 import com.locallogsearch.core.search.SearchRequest;
+import com.locallogsearch.service.export.DirectTableExportService;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/search")
@@ -42,9 +44,11 @@ public class SearchController {
     private static final Logger log = LoggerFactory.getLogger(SearchController.class);
     
     private final SearchService searchService;
+    private final DirectTableExportService exportService;
     
-    public SearchController(SearchService searchService) {
+    public SearchController(SearchService searchService, DirectTableExportService exportService) {
         this.searchService = searchService;
+        this.exportService = exportService;
     }
     
     @PostMapping
@@ -74,6 +78,40 @@ public class SearchController {
             log.info("Search request - timestampFrom: {}, timestampTo: {}", apiRequest.getTimestampFrom(), apiRequest.getTimestampTo());
             
             SearchResponse response = searchService.search(request);
+            
+            // Check if this is an export result and handle it
+            if (response.getResultType() == PipeResult.ResultType.EXPORT) {
+                PipeResult.ExportResult exportResult = (PipeResult.ExportResult) response.getPipeResult();
+                Map<String, Object> metadata = exportResult.getMetadata();
+                
+                String tableName = (String) metadata.get("tableName");
+                @SuppressWarnings("unchecked")
+                List<String> fields = (List<String>) metadata.get("fields");
+                Integer sampleSize = (Integer) metadata.get("sampleSize");
+                Boolean append = (Boolean) metadata.get("append");
+                
+                // Perform the actual export
+                DirectTableExportService.DirectExportResult exportStats = exportService.exportToTable(
+                    tableName,
+                    exportResult.getResults(),
+                    fields,
+                    sampleSize,
+                    apiRequest.getQuery(),
+                    append != null ? append : true
+                );
+                
+                // Return export success response
+                return ResponseEntity.ok(Map.of(
+                    "resultType", "EXPORT",
+                    "exportSuccess", true,
+                    "tableName", exportStats.getTableName(),
+                    "rowsExported", exportStats.getRowsExported(),
+                    "totalRows", exportStats.getTotalRows(),
+                    "columns", exportStats.getColumns(),
+                    "message", String.format("Exported %d rows to table '%s' (total: %d rows)",
+                        exportStats.getRowsExported(), exportStats.getTableName(), exportStats.getTotalRows())
+                ));
+            }
             
             return ResponseEntity.ok(new ApiSearchResponse(response));
             

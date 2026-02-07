@@ -26,11 +26,15 @@ package com.locallogsearch.service.config;
 
 import com.locallogsearch.core.config.IndexConfig;
 import com.locallogsearch.core.config.LogSourceConfig;
+import com.locallogsearch.core.desktop.DesktopIndexerManager;
+import com.locallogsearch.core.desktop.parser.FileContentParserRegistry;
 import com.locallogsearch.core.index.IndexManager;
 import com.locallogsearch.core.search.SearchService;
 import com.locallogsearch.core.tailer.FileTailerState;
 import com.locallogsearch.core.tailer.TailerManager;
 import com.locallogsearch.service.model.TailerState;
+import com.locallogsearch.service.repository.DesktopSourceRepository;
+import com.locallogsearch.service.repository.FileIndexStateRepository;
 import com.locallogsearch.service.repository.LogSourceRepository;
 import com.locallogsearch.service.repository.TailerStateRepository;
 import org.slf4j.Logger;
@@ -58,6 +62,15 @@ public class ServiceConfiguration {
     
     @Value("${state.directory:./state}")
     private String stateDirectory;
+    
+    @Value("${desktop.max-file-size-mb}")
+    private int desktopMaxFileSizeMb;
+    
+    @Value("${desktop.max-indexed-content-kb}")
+    private int desktopMaxIndexedContentKb;
+    
+    @Value("${desktop.indexing-thread-pool-size}")
+    private int desktopIndexingThreadPoolSize;
     
     @Bean
     public IndexConfig indexConfig() {
@@ -105,5 +118,36 @@ public class ServiceConfiguration {
     @Bean
     public SearchService searchService(IndexConfig indexConfig) {
         return new SearchService(indexConfig);
+    }
+    
+    @Bean
+    public FileContentParserRegistry fileContentParserRegistry() {
+        return new FileContentParserRegistry();
+    }
+    
+    @Bean
+    public DesktopSourceRepository desktopSourceRepository() {
+        return new DesktopSourceRepository(Paths.get(stateDirectory));
+    }
+    
+    @Bean
+    public FileIndexStateRepository fileIndexStateRepository() {
+        return new FileIndexStateRepository(Paths.get(stateDirectory));
+    }
+    
+    @Bean
+    public DesktopIndexerManager desktopIndexerManager(IndexManager indexManager,
+                                                       FileContentParserRegistry parserRegistry,
+                                                       FileIndexStateRepository stateRepository) {
+        DesktopIndexerManager manager = new DesktopIndexerManager(
+            indexManager,
+            parserRegistry,
+            desktopIndexingThreadPoolSize
+        );
+        
+        // Set up callback to persist file states after indexing
+        manager.setStateCallback(stateRepository::save);
+        
+        return manager;
     }
 }

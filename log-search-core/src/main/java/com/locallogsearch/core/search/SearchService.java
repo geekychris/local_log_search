@@ -191,8 +191,8 @@ public class SearchService {
         IndexReader reader = getOrOpenReader(indexName, indexPath);
         IndexSearcher searcher = new IndexSearcher(reader);
         
-        // Parse query - search in raw_text and all other fields
-        String[] fields = {"raw_text"};
+        // Parse query - search in raw_text (logs) and content (desktop files) fields
+        String[] fields = {"raw_text", "content"};
         MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer);
         parser.setDefaultOperator(QueryParser.Operator.AND);
         
@@ -301,8 +301,8 @@ public class SearchService {
         IndexReader reader = getOrOpenReader(indexName, indexPath);
         IndexSearcher searcher = new IndexSearcher(reader);
         
-        // Parse query
-        String[] fields = {"raw_text"};
+        // Parse query - search in raw_text (logs) and content (desktop files) fields
+        String[] fields = {"raw_text", "content"};
         MultiFieldQueryParser parser = new MultiFieldQueryParser(fields, analyzer);
         parser.setDefaultOperator(QueryParser.Operator.AND);
         
@@ -334,7 +334,12 @@ public class SearchService {
         SearchResult result = new SearchResult();
         result.setIndexName(indexName);
         result.setScore(score);
-        result.setRawText(doc.get("raw_text"));
+        // For logs, use raw_text; for desktop files, use content
+        String rawText = doc.get("raw_text");
+        if (rawText == null) {
+            rawText = doc.get("content");
+        }
+        result.setRawText(rawText);
         result.setSource(doc.get("source"));
         
         Long timestampMillis = doc.getField("timestamp") != null ? 
@@ -343,11 +348,11 @@ public class SearchService {
             result.setTimestamp(Instant.ofEpochMilli(timestampMillis));
         }
         
-        // Extract all other fields (skip _num variants)
+        // Extract all other fields (skip _num variants and content since it's in rawText)
         Map<String, String> fields = new HashMap<>();
         doc.getFields().forEach(field -> {
             String name = field.name();
-            if (!name.equals("raw_text") && !name.equals("source") && !name.equals("timestamp") 
+            if (!name.equals("raw_text") && !name.equals("content") && !name.equals("source") && !name.equals("timestamp") 
                 && !name.endsWith("_exact") && !name.endsWith("_num")) {
                 fields.put(name, field.stringValue());
             }
@@ -677,16 +682,255 @@ public class SearchService {
     }
     
     /**
+     * Check if we can use the faceting fast-path for this query.
+     * Fast-path applies to: | stats count by field (single field, count only)
+     */
+    private boolean canUseFacetingFastPath(ParsedQuery parsedQuery) {
+        List<PipeCommandSpec> commands = parsedQuery.getPipeCommands();
+        
+        // Must have exactly one or two commands: stats [and optionally chart]
+        if (commands.isEmpty() || commands.size() > 2) {
+            return false;
+        }
+        
+        // First command must be stats
+        PipeCommandSpec statsCmd = commands.get(0);
+        if (!statsCmd.getCommand().equals("stats")) {
+            return false;
+        }
+        
+        List<String> args = statsCmd.getArgs();
+        
+        // Must have at least "count", "by", "field"
+        if (args.size() < 3) {
+            return false;
+        }
+        
+        // First arg must be "count"
+        if (!args.get(0).equalsIgnoreCase("count")) {
+            return false;
+        }
+        
+        // Second arg must be "by"
+        if (!args.get(1).equalsIgnoreCase("by")) {
+            return false;
+        }
+        
+        // Count the number of fields after "by"
+        // Need to account for comma-separated fields: "queue, level" becomes "queue," and "level"
+        int fieldCount = 0;
+        for (int i = 2; i < args.size(); i++) {
+            String arg = args.get(i);
+            // Split by comma to handle "field1, field2" syntax
+            String[] fields = arg.split(",");
+            for (String field : fields) {
+                if (!field.trim().isEmpty()) {
+                    fieldCount++;
+                }
+            }
+        }
+        
+        // Fast-path only works for SINGLE field grouping
+        if (fieldCount != 1) {
+            return false;
+        }
+        
+        // If there's a second command, it must be chart (which doesn't change the logic)
+        if (commands.size() == 2) {
+            if (!commands.get(1).getCommand().equals("chart")) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Execute stats count by field using Lucene faceting (fast!)
+     * This processes ALL documents efficiently without iterating.
+     */
+    private SearchResponse executeStatsUsingFaceting(SearchRequest request, ParsedQuery parsedQuery) throws IOException, ParseException {
+        long startTime = System.currentTimeMillis();
+        
+        // Extract the field name
+        String args = String.join(" ", parsedQuery.getPipeCommands().get(0).getArgs());
+        String groupByField = args.substring("count by ".length()).trim();
+        
+        log.info("Fast-path stats count by '{}'", groupByField);
+        
+        // Execute base search to get total hits
+        SearchRequest baseRequest = new SearchRequest();
+        baseRequest.setIndices(request.getIndices());
+        baseRequest.setQuery(parsedQuery.getBaseQuery());
+        baseRequest.setTimestampFrom(request.getTimestampFrom());
+        baseRequest.setTimestampTo(request.getTimestampTo());
+        baseRequest.setIncludeFacets(true);
+        
+        // Calculate facets for all matching documents
+        int totalHits = 0;
+        Map<String, Integer> combinedFacets = new HashMap<>();
+        
+        for (String indexName : request.getIndices()) {
+            IndexQueryContext context = prepareQueryContext(indexName, baseRequest);
+            if (context == null) {
+                continue;
+            }
+            
+            totalHits += context.totalHits;
+            
+            // Use existing faceting logic to count by field
+            FacetResultData facetResult = calculateFacetsFromAllHits(context.searcher, context.query, context.totalHits, null);
+            
+            // Extract the specific field we care about
+            if (facetResult.facets.containsKey(groupByField)) {
+                Map<String, Integer> fieldCounts = facetResult.facets.get(groupByField);
+                // Merge into combined results
+                for (Map.Entry<String, Integer> entry : fieldCounts.entrySet()) {
+                    combinedFacets.merge(entry.getKey(), entry.getValue(), Integer::sum);
+                }
+            }
+        }
+        
+        // Build result table
+        List<String> columns = new ArrayList<>();
+        columns.add(groupByField);
+        columns.add("count");
+        
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : combinedFacets.entrySet()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put(groupByField, entry.getKey());
+            row.put("count", entry.getValue());
+            rows.add(row);
+        }
+        
+        // Sort by count descending
+        rows.sort((a, b) -> {
+            Integer countA = (Integer) a.get("count");
+            Integer countB = (Integer) b.get("count");
+            return countB.compareTo(countA);
+        });
+        
+        PipeResult.TableResult tableResult = new PipeResult.TableResult(columns, rows, totalHits);
+        
+        // If there's a chart command, convert to chart
+        PipeResult finalResult = tableResult;
+        if (parsedQuery.getPipeCommands().size() == 2) {
+            try {
+                PipeCommand chartCmd = PipeCommandFactory.createCommand(parsedQuery.getPipeCommands().get(1));
+                if (chartCmd instanceof com.locallogsearch.core.pipe.commands.ChartCommand) {
+                    finalResult = ((com.locallogsearch.core.pipe.commands.ChartCommand) chartCmd).executeOnTable(tableResult);
+                }
+            } catch (Exception e) {
+                log.error("Error executing chart command", e);
+            }
+        }
+        
+        SearchResponse response = new SearchResponse(finalResult);
+        response.setTotalHits(totalHits);
+        
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("Fast-path stats COMPLETE - total time: {}ms, processed ALL {} docs", totalTime, totalHits);
+        
+        return response;
+    }
+    
+    /**
+     * Determine which fields are needed for the pipe commands.
+     * This allows us to use selective field loading for better performance.
+     */
+    private Set<String> getRequiredFieldsForPipes(ParsedQuery parsedQuery) {
+        Set<String> fields = new HashSet<>();
+        
+        for (PipeCommandSpec spec : parsedQuery.getPipeCommands()) {
+            String command = spec.getCommand();
+            String args = String.join(" ", spec.getArgs());
+            
+            if (command.equals("stats")) {
+                // Extract fields from stats command
+                // Format: "count by level" or "avg(duration) by operation"
+                // Also supports: "count by queue, level" (comma-separated)
+                if (args.contains(" by ")) {
+                    String[] parts = args.split(" by ", 2);
+                    if (parts.length > 1) {
+                        // Add group-by fields (handle both space and comma separation)
+                        String[] groupFields = parts[1].trim().split("\\s+");
+                        for (String field : groupFields) {
+                            // Split by comma to handle "field1, field2" syntax
+                            String[] subFields = field.split(",");
+                            for (String subField : subFields) {
+                                String trimmed = subField.trim();
+                                if (!trimmed.isEmpty()) {
+                                    fields.add(trimmed);
+                                }
+                            }
+                        }
+                    }
+                    // Add aggregation fields
+                    String aggPart = parts[0];
+                    // Extract fields from aggregation functions like avg(duration), sum(bytes)
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(avg|sum|min|max|dc)\\(([^)]+)\\)");
+                    java.util.regex.Matcher matcher = pattern.matcher(aggPart);
+                    while (matcher.find()) {
+                        fields.add(matcher.group(2).trim());
+                    }
+                }
+            } else if (command.equals("timechart")) {
+                // Extract fields from timechart - similar to stats
+                if (args.contains(" by ")) {
+                    String[] parts = args.split(" by ", 2);
+                    if (parts.length > 1) {
+                        String[] groupFields = parts[1].trim().split("\\s+");
+                        for (String field : groupFields) {
+                            // Split by comma to handle "field1, field2" syntax
+                            String[] subFields = field.split(",");
+                            for (String subField : subFields) {
+                                String trimmed = subField.trim();
+                                if (!trimmed.isEmpty()) {
+                                    fields.add(trimmed);
+                                }
+                            }
+                        }
+                    }
+                    String aggPart = parts[0];
+                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(avg|sum|min|max|dc)\\(([^)]+)\\)");
+                    java.util.regex.Matcher matcher = pattern.matcher(aggPart);
+                    while (matcher.find()) {
+                        fields.add(matcher.group(2).trim());
+                    }
+                }
+                // Always need timestamp for timechart
+                fields.add("timestamp");
+            }
+            // chart and filter commands don't need specific fields from docs
+        }
+        
+        log.info("Required fields for pipe commands: {}", fields);
+        return fields;
+    }
+    
+    /**
      * Search with pipe commands
      */
     private SearchResponse searchWithPipes(SearchRequest request, ParsedQuery parsedQuery) throws IOException, ParseException {
+        long startTime = System.currentTimeMillis();
+        log.info("searchWithPipes START - query: {}", parsedQuery.getBaseQuery());
         log.debug("searchWithPipes - timestampFrom: {}, timestampTo: {}", request.getTimestampFrom(), request.getTimestampTo());
+        
+        // Check if we can use fast-path optimization for simple stats count by field
+        if (canUseFacetingFastPath(parsedQuery)) {
+            log.info("Using faceting fast-path for stats count by field");
+            return executeStatsUsingFaceting(request, parsedQuery);
+        }
+        
+        // Determine which fields are needed for selective field loading
+        Set<String> requiredFields = getRequiredFieldsForPipes(parsedQuery);
         
         // Execute base search with the parsed base query
         SearchRequest baseRequest = new SearchRequest();
         baseRequest.setIndices(request.getIndices());
         baseRequest.setQuery(parsedQuery.getBaseQuery());
-        baseRequest.setPageSize(Integer.MAX_VALUE); // No limit - fetch all results for accurate aggregations
+        baseRequest.setPageSize(Integer.MAX_VALUE); // Placeholder, not used for pipe queries
         baseRequest.setIncludeFacets(false); // Don't need facets for pipes
         // Copy timestamp filters from original request
         baseRequest.setTimestampFrom(request.getTimestampFrom());
@@ -696,19 +940,39 @@ public class SearchService {
         // Create streaming iterators for each index - don't materialize results into a list
         List<Iterator<SearchResult>> indexIterators = new ArrayList<>();
         int totalHitsAcrossIndices = 0;
+        int totalProcessedDocs = 0; // Track actual docs processed (for sampling warning)
         
         for (String indexName : request.getIndices()) {
+            long indexStartTime = System.currentTimeMillis();
             IndexQueryContext context = prepareQueryContext(indexName, baseRequest);
             if (context == null) {
                 continue;
             }
             
-            // Execute search to get TopDocs
-            TopDocs topDocs = context.searcher.search(context.query, Integer.MAX_VALUE);
-            totalHitsAcrossIndices += context.totalHits;
+            // Execute search - limit to prevent OOM on huge result sets
+            // For pipe queries (stats, chart), we process a sample for performance
+            // Default limit: 1 million documents per index (can be overridden in request)
+            int PIPE_QUERY_LIMIT = request.getPipeQueryLimit() != null ? request.getPipeQueryLimit() : 1_000_000;
+            int docsToFetch = Math.min(context.totalHits, PIPE_QUERY_LIMIT);
             
-            // Create streaming iterator for this index
-            indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName));
+            if (context.totalHits > PIPE_QUERY_LIMIT) {
+                log.warn("Pipe query on index {} has {} hits, limiting to {} for performance", 
+                    indexName, context.totalHits, PIPE_QUERY_LIMIT);
+            }
+            
+            long searchStartTime = System.currentTimeMillis();
+            TopDocs topDocs = context.searcher.search(context.query, Math.max(docsToFetch, 1));
+            long searchTime = System.currentTimeMillis() - searchStartTime;
+            log.info("Index {} - search took {}ms for {} docs (total hits: {})", 
+                indexName, searchTime, docsToFetch, context.totalHits);
+            
+            totalHitsAcrossIndices += context.totalHits;
+            totalProcessedDocs += docsToFetch;
+            
+            // Create streaming iterator for this index with selective field loading
+            indexIterators.add(new LuceneResultIterator(context.searcher, topDocs, indexName, requiredFields));
+            long indexTime = System.currentTimeMillis() - indexStartTime;
+            log.info("Index {} - total preparation took {}ms", indexName, indexTime);
         }
         
         // Merge all index iterators together with score-descending order
@@ -717,8 +981,10 @@ public class SearchService {
         PipeResult pipeResult = null;
         
         // Execute pipe commands in sequence, allowing result type transformations
+        long pipeStartTime = System.currentTimeMillis();
         for (PipeCommandSpec spec : parsedQuery.getPipeCommands()) {
             try {
+                long cmdStartTime = System.currentTimeMillis();
                 PipeCommand command = PipeCommandFactory.createCommand(spec);
                 
                 // Execute based on current state
@@ -729,11 +995,15 @@ public class SearchService {
                     // Subsequent commands: handle based on result type and command type
                     pipeResult = executeChainedCommand(command, pipeResult, totalHitsAcrossIndices);
                 }
+                long cmdTime = System.currentTimeMillis() - cmdStartTime;
+                log.info("Pipe command '{}' took {}ms", spec.getCommand(), cmdTime);
             } catch (Exception e) {
                 log.error("Error executing pipe command: {}", spec.getCommand(), e);
                 throw new RuntimeException("Pipe command error: " + e.getMessage(), e);
             }
         }
+        long pipeTime = System.currentTimeMillis() - pipeStartTime;
+        log.info("Total pipe execution took {}ms", pipeTime);
         
         // If no pipe commands produced a result, materialize results from iterator
         if (pipeResult == null) {
@@ -746,6 +1016,15 @@ public class SearchService {
         SearchResponse response = new SearchResponse(pipeResult);
         // Set the original query hits (before any filtering)
         response.setTotalHits(totalHitsAcrossIndices);
+        // Set sample size if we didn't process all documents
+        if (totalProcessedDocs < totalHitsAcrossIndices) {
+            response.setPipeSampleSize(totalProcessedDocs);
+        }
+        
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("searchWithPipes COMPLETE - total time: {}ms, processed {} docs out of {} total hits", 
+            totalTime, totalProcessedDocs, totalHitsAcrossIndices);
+        
         return response;
     }
     
