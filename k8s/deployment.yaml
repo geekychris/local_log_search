@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: local-log-search
+    app.kubernetes.io/managed-by: devportal
+  name: local-log-search
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: local-log-search
+  template:
+    metadata:
+      labels:
+        app: local-log-search
+    spec:
+      containers:
+      - name: local-log-search
+        image: devportal/local-log-search:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: INDEX_BASE_DIRECTORY
+          value: /data/indices
+        - name: STATE_DIR
+          value: /data/state
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:h2:file:/data/database/logdb;AUTO_SERVER=TRUE
+        volumeMounts:
+        # Persistent storage for Lucene indices, H2 DB, and tailer state.
+        - name: lls-data
+          mountPath: /data
+        # Read-only window onto the host filesystem. Configure log sources in
+        # the app pointing at /host/Users/chris/... or /host/var/log/... etc.
+        - name: host-home
+          mountPath: /host/Users/chris
+          readOnly: true
+        - name: host-var-log
+          mountPath: /host/var/log
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          failureThreshold: 5
+      volumes:
+      - name: lls-data
+        hostPath:
+          path: /Users/chris/.local_log_search
+          type: DirectoryOrCreate
+      - name: host-home
+        hostPath:
+          path: /Users/chris
+          type: Directory
+      - name: host-var-log
+        hostPath:
+          path: /var/log
+          type: Directory

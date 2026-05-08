@@ -1,0 +1,45 @@
+apiVersion: devportal.io/v1
+kind: Asset
+metadata:
+  id: local-log-search
+  name: Local Log Search
+  description: |
+    Lucene-backed log indexing and search service. Tails configured log files,
+    indexes them with Lucene, exposes a Vaadin web UI plus REST API. Includes
+    Spring AI / Ollama integration for natural-language queries over indexed logs.
+  owner: geekychris
+  tags: [java, spring-boot, lucene, vaadin, search, observability]
+spec:
+  type: service
+  language: java
+  build:
+    tool: maven
+    commands:
+      build:   mvn -DskipTests package
+      package: mvn -DskipTests package
+      install: mvn -DskipTests install
+      test:    mvn test
+      clean:   mvn clean
+  docker:
+    enabled: true
+    dockerfile: Dockerfile
+    context: .
+    image: devportal/local-log-search:latest
+  kubernetes:
+    enabled: true
+    manifestPath: k8s
+    namespace: local-log-search
+  runtime:
+    ports:
+      - name: http
+        purpose: http
+    env:
+      - name: INDEX_BASE_DIRECTORY
+        default: /data/indices
+        description: Lucene index location inside the container; mounted from the host.
+      - name: STATE_DIR
+        default: /data/state
+        description: Where log-sources.json / tailer-state.json are persisted.
+      - name: SPRING_DATASOURCE_URL
+        default: jdbc:h2:file:/data/database/logdb;AUTO_SERVER=TRUE
+        description: H2 database file path inside the container.
