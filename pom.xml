@@ -29,6 +29,7 @@
         <module>log-search-core</module>
         <module>log-search-service</module>
         <module>test-log-generator</module>
+        <module>desktop</module>
     </modules>
 
     <dependencyManagement>
