@@ -619,10 +619,10 @@
                 <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
             </div>
             <div class="nav-links">
-                <a href="/ui/index.html">🔍 Search</a>
+                <a href="/ui/index.html" title="Query your indexed logs with Lucene syntax + pipe commands (stats, chart, timechart).">🔍 Search</a>
                 <a href="/ui/sources.html">📁 Log Sources</a>
                 <a href="/ui/desktop-sources.html">💻 Desktop Sources</a>
-                <a href="/ui/lucene-diagnostics.html">🔧 Diagnostics</a>
+                <a href="/ui/lucene-diagnostics.html" title="Inspect Lucene index internals — field distributions, analyzer output, stats.">🔧 Diagnostics</a>
             </div>
         </header>
         
@@ -637,7 +637,7 @@
         <div class="main-grid">
             <aside class="sidebar">
                 <h3>Tables</h3>
-                <button onclick="loadTables()" class="secondary" style="width: 100%; margin-bottom: 10px;">
+                <button onclick="loadTables()" class="secondary" style="width: 100%; margin-bottom: 10px;" title="Re-fetch the list of tables in the H2 database. Click after using Export → Database on the Search page.">
                     Refresh
                 </button>
                 <ul class="tables-list" id="tablesList">
@@ -648,9 +648,9 @@
             <main>
                 <div class="query-section">
                     <div class="query-tabs">
-                        <button class="query-tab active" onclick="switchTab('query')">Query</button>
-                        <button class="query-tab" onclick="switchTab('create')">Create Table</button>
-                        <button class="query-tab" onclick="switchTab('insert')">Insert Data</button>
+                        <button class="query-tab active" onclick="switchTab('query')" title="Run SELECT statements against exported tables.">Query</button>
+                        <button class="query-tab" onclick="switchTab('create')" title="Create a new table with CREATE TABLE DDL. Useful for staging imports.">Create Table</button>
+                        <button class="query-tab" onclick="switchTab('insert')" title="Insert rows into an existing table with INSERT statements.">Insert Data</button>
                     </div>
 
                     <!-- Query Tab -->
@@ -665,10 +665,10 @@
                             <div style="font-size: 12px; color: #858585; margin-top: 4px;">Limits rows fetched from database (default: 10,000). This prevents browser freezes on large result sets.</div>
                         </div>
                         <div class="button-group">
-                            <button onclick="executeQuery()" id="executeBtn">Execute Query</button>
-                            <button class="secondary" onclick="clearQuery()">Clear</button>
-                            <button class="secondary" onclick="formatQuery()">Format</button>
-                            <button class="secondary" onclick="showAIHelper()" id="aiHelperBtn">🤖 AI Help</button>
+                            <button onclick="executeQuery()" id="executeBtn" title="Run the SQL in the query box against the H2 database. Results appear below.">Execute Query</button>
+                            <button class="secondary" onclick="clearQuery()" title="Empty the SQL editor.">Clear</button>
+                            <button class="secondary" onclick="formatQuery()" title="Reformat the SQL with standard indentation and keyword capitalization.">Format</button>
+                            <button class="secondary" onclick="showAIHelper()" id="aiHelperBtn" title="Ask an LLM to build a SQL query from a plain-English question about your tables.">🤖 AI Help</button>
                         </div>
                         <div class="quick-queries">
                             <button class="quick-query-btn" onclick="setQuery('SELECT * FROM exported_tables;')">

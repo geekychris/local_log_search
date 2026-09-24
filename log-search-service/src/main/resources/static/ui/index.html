@@ -838,10 +838,10 @@
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="search">Search</a>
             <a href="#" class="nav-link" data-page="examples">Query Examples</a>
-            <a href="/ui/sources.html" class="nav-link">📁 Log Sources</a>
+            <a href="/ui/sources.html" class="nav-link" title="Register, edit, and remove log files being tailed and indexed live.">📁 Log Sources</a>
             <a href="/ui/desktop-sources.html" class="nav-link">💻 Desktop Sources</a>
             <a href="/ui/sql.html" class="nav-link">🗄️ SQL Query</a>
-            <a href="/ui/lucene-diagnostics.html" class="nav-link">🔧 Diagnostics</a>
+            <a href="/ui/lucene-diagnostics.html" class="nav-link" title="Inspect Lucene index internals — field distributions, analyzer output, stats.">🔧 Diagnostics</a>
         </div>
     </div>
     
@@ -857,30 +857,30 @@
                                 <label for="indices">Indices</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
                                     <div style="flex: 1;">
-                                        <select id="indicesSelect" multiple size="4" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;">
+                                        <select id="indicesSelect" multiple size="4" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;" title="Which Lucene indices to search. Cmd/Ctrl-click to pick multiple. If nothing is highlighted, the search falls back to the hidden 'app-logs' default — which is usually empty, and is why searches sometimes return zero results.">
                                             <option value="">Loading indices...</option>
                                         </select>
                                         <div style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Hold Ctrl/Cmd to select multiple</div>
                                     </div>
-                                    <button type="button" id="refreshIndicesBtn" class="secondary" style="padding: 0.5rem; white-space: nowrap;">🔄 Refresh</button>
+                                    <button type="button" id="refreshIndicesBtn" class="secondary" style="padding: 0.5rem; white-space: nowrap;" title="Re-fetch the list of Lucene indices from the server. Click this after adding a new Log Source if it doesn't appear in the list yet.">🔄 Refresh</button>
                                 </div>
                                 <input type="text" id="indices" placeholder="app-logs, access-logs" value="app-logs" style="display: none;">
                             </div>
                             <div class="form-group">
                                 <label for="query">Query</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: flex-start;">
-                                    <input type="text" id="query" placeholder="level:ERROR | stats count by user" value="" style="flex: 1;">
-                                    <button type="button" id="aiHelperBtn" class="secondary" style="padding: 0.75rem 1rem; white-space: nowrap;">🤖 AI Help</button>
+                                    <input type="text" id="query" placeholder="level:ERROR | stats count by user" value="" style="flex: 1;" title="Lucene query. Examples: *:* (all), level:INFO, msg:started, msg:&quot;chiefd started&quot; (phrase), level:INFO AND pid:16625. Add pipe commands for aggregation: | stats count by level, | timechart, | chart. See Query Examples in the nav for a full list.">
+                                    <button type="button" id="aiHelperBtn" class="secondary" style="padding: 0.75rem 1rem; white-space: nowrap;" title="Ask an LLM to translate a plain-English question into a Lucene query. Useful when you don't remember the field name for what you're looking for.">🤖 AI Help</button>
                                 </div>
                                 <div class="query-hint">
                                     Use field:value for exact matches, field:[min TO max] for ranges. Pipe commands (|) enable aggregations: | stats, | chart, | timechart. See Query Examples for details.
                                 </div>
                                 <div style="margin-top: 0.5rem; display: flex; gap: 1.5rem; flex-wrap: wrap;">
-                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;">
+                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;" title="Restrict results to file-content sources (PDFs, Office docs, JSON, etc.) — excludes tailed log lines.">
                                         <input type="checkbox" id="desktopFilesOnly" style="margin-right: 0.5rem; cursor: pointer;">
                                         💻 Desktop files only
                                     </label>
-                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;">
+                                    <label style="display: inline-flex; align-items: center; cursor: pointer; font-size: 0.875rem;" title="Show the facet sidebar (value counts per field) alongside the results. Turn off for faster searches on huge indices.">
                                         <input type="checkbox" id="enableFacets" checked style="margin-right: 0.5rem; cursor: pointer;">
                                         📊 Enable facets
                                     </label>
@@ -889,7 +889,7 @@
                             <div class="form-group">
                                 <label>Time Range</label>
                                 <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
-                                    <select id="quickTimeRange" style="flex: 1; min-width: 150px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem;">
+                                    <select id="quickTimeRange" style="flex: 1; min-width: 150px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.875rem;" title="Restrict results to a rolling time window ending now. Pick 'Custom range...' or click the clock button for exact from/to bounds.">
                                         <option value="">All time (default)</option>
                                         <option value="5m">Last 5 minutes</option>
                                         <option value="15m">Last 15 minutes</option>
@@ -903,13 +903,13 @@
                                         <option value="30d">Last 30 days</option>
                                         <option value="custom">Custom range...</option>
                                     </select>
-                                    <button type="button" class="time-picker-btn" id="timeRangeBtn" style="white-space: nowrap;">
+                                    <button type="button" class="time-picker-btn" id="timeRangeBtn" style="white-space: nowrap;" title="Open a date/time picker to specify exact from/to bounds instead of a rolling window.">
                                         🕐 Custom
                                     </button>
                                 </div>
                                 <div class="time-range-display" id="timeRangeDisplay">All time</div>
                             </div>
-                            <div class="bucket-config">
+                            <div class="bucket-config" title="Group numeric fields into ranges so the facet panel shows histograms instead of raw values (useful for durations, response sizes, etc.).">
                                 <div class="bucket-config-header" id="bucketConfigToggle">
                                     <label style="margin: 0; cursor: pointer;">⚙️ Facet Bucketing (optional)</label>
                                     <span id="bucketToggleIcon">▼</span>
@@ -924,8 +924,8 @@
                                 </div>
                             </div>
                             <div class="button-group">
-                                <button type="submit">Search</button>
-                                <button type="button" class="secondary" id="clearBtn">Clear</button>
+                                <button type="submit" title="Run the query against the selected indices with the current time range and facet settings.">Search</button>
+                                <button type="button" class="secondary" id="clearBtn" title="Reset the query, time range, and facet buckets back to defaults.">Clear</button>
                             </div>
                         </form>
                         
@@ -936,17 +936,17 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                             <h2 style="margin: 0;">Results (<span id="totalHits">0</span> hits)</h2>
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="secondary" id="summarizeBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">🤖 Summarize</button>
-                                <button class="secondary" id="exportBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">📥 Export</button>
-                                <button class="share" id="shareBtn">📋 Share Query</button>
+                                <button class="secondary" id="summarizeBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;" title="Have the LLM produce a plain-English summary of what's in the current result set (root causes, patterns, hotspots).">🤖 Summarize</button>
+                                <button class="secondary" id="exportBtn" style="font-size: 0.875rem; padding: 0.5rem 1rem;" title="Open export options: CSV, JSON, PDF (charts only), or export to the H2 database for later SQL analysis.">📥 Export</button>
+                                <button class="share" id="shareBtn" title="Copy a URL that reproduces this search — indices, query, time range, and facet settings all round-trip.">📋 Share Query</button>
                             </div>
                         </div>
                         <div id="exportOptions" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px;">
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <button id="exportCsv" style="background: #27ae60; font-size: 0.875rem; padding: 0.5rem 1rem;">CSV</button>
-                                <button id="exportJson" style="background: #2980b9; font-size: 0.875rem; padding: 0.5rem 1rem;">JSON</button>
-                                <button id="exportPdf" style="background: #c0392b; font-size: 0.875rem; padding: 0.5rem 1rem;" disabled>PDF (Charts Only)</button>
-                                <button id="exportDatabase" style="background: #8e44ad; font-size: 0.875rem; padding: 0.5rem 1rem;">🗄️ Database</button>
+                                <button id="exportCsv" style="background: #27ae60; font-size: 0.875rem; padding: 0.5rem 1rem;" title="Download the current results as a CSV file. Column selection dialog appears next.">CSV</button>
+                                <button id="exportJson" style="background: #2980b9; font-size: 0.875rem; padding: 0.5rem 1rem;" title="Download the current results as JSON — each line one full LogEntry with fields + rawText + source.">JSON</button>
+                                <button id="exportPdf" style="background: #c0392b; font-size: 0.875rem; padding: 0.5rem 1rem;" disabled title="Export chart results (only enabled when the query includes a chart/timechart pipe command).">PDF (Charts Only)</button>
+                                <button id="exportDatabase" style="background: #8e44ad; font-size: 0.875rem; padding: 0.5rem 1rem;" title="Persist results to an H2 database table so you can query them later using the SQL Query page.">🗄️ Database</button>
                             </div>
                         </div>
                         <div class="sort-controls">
@@ -2665,10 +2665,10 @@
                             // Build file action buttons
                             const fileActions = `
                                 <div class="file-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                    <button class="file-action-btn view-file" onclick="viewFile('${filePath.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}', '${mimeType}')">👁️ View File</button>
-                                    <button class="file-action-btn" onclick="copyToClipboard('${filePath.replace(/'/g, "\\'")}')">📋 Copy Path</button>
-                                    <button class="file-action-btn" onclick="openFileLocation('${filePath.replace(/'/g, "\\'")}')">🔗 Open in Browser</button>
-                                    ${hasMoreContent ? `<button class="file-action-btn" onclick="toggleContent('${resultId}')">📄 Show More</button>` : ''}
+                                    <button class="file-action-btn view-file" title="Open the full file in a viewer (PDF/image inline, others as text)." onclick="viewFile('${filePath.replace(/'/g, "\\'").replace(/\\/g, '\\\\')}', '${mimeType}')">👁️ View File</button>
+                                    <button class="file-action-btn" title="Copy the absolute file path to the clipboard." onclick="copyToClipboard('${filePath.replace(/'/g, "\\'")}')">📋 Copy Path</button>
+                                    <button class="file-action-btn" title="Open the file location in a new tab of your default browser (uses file:// URL — works on macOS)." onclick="openFileLocation('${filePath.replace(/'/g, "\\'")}')">🔗 Open in Browser</button>
+                                    ${hasMoreContent ? `<button class="file-action-btn" title="Toggle between truncated preview and the full log entry." onclick="toggleContent('${resultId}')">📄 Show More</button>` : ''}
                                 </div>
                             `;
                             

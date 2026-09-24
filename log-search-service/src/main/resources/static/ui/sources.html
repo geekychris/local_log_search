@@ -297,10 +297,10 @@
             <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
         </div>
         <div class="nav-links">
-            <a href="/ui/index.html">🔍 Search</a>
+            <a href="/ui/index.html" title="Query your indexed logs with Lucene syntax + pipe commands (stats, chart, timechart).">🔍 Search</a>
             <a href="/ui/desktop-sources.html">💻 Desktop Sources</a>
             <a href="/ui/sql.html">🗄️ SQL Query</a>
-            <a href="/ui/lucene-diagnostics.html">🔧 Diagnostics</a>
+            <a href="/ui/lucene-diagnostics.html" title="Inspect Lucene index internals — field distributions, analyzer output, stats.">🔧 Diagnostics</a>
             <a href="/ui/test-indices.html">🔬 Indices Diagnostic</a>
         </div>
     </div>
@@ -313,9 +313,9 @@
                 <div class="form-group">
                     <label for="filePath">File Path (Absolute) *</label>
                     <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="filePath" placeholder="/Users/yourname/logs/app.log" required style="flex: 1;">
-                        <button type="button" class="secondary" onclick="showFileBrowser()">Browse...</button>
-                        <button type="button" class="secondary" id="loadPreview">Preview File</button>
+                        <input type="text" id="filePath" placeholder="/Users/yourname/logs/app.log" required style="flex: 1;" title="Absolute path to the log file on this machine. Must start with / — relative paths won't work because the tailer runs from the service's cwd.">
+                        <button type="button" class="secondary" onclick="showFileBrowser()" title="Open a server-side directory picker so you don't have to type the path.">Browse…</button>
+                        <button type="button" class="secondary" id="loadPreview" title="Show the first ~50 lines of the file so you can verify the parser is set up correctly before saving.">Preview File</button>
                     </div>
                     <div class="form-hint">
                         Full absolute path required (starting with /). Click Browse to select a file from the server.
@@ -328,9 +328,9 @@
                         <h3>Select Log Lines to Test</h3>
                         <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">
                             Select lines from the log file to test with the parser. 
-                            <button type="button" class="secondary" onclick="selectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">Select All</button>
-                            <button type="button" class="secondary" onclick="deselectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Deselect All</button>
-                            <button type="button" class="secondary" onclick="showGrokAiHelper()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">🤖 AI Grok Helper</button>
+                            <button type="button" class="secondary" onclick="selectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.5rem;" title="Check every line in the preview so the parser test runs against all of them.">Select All</button>
+                            <button type="button" class="secondary" onclick="deselectAllLines()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="Uncheck every line so no lines are used in the parser test.">Deselect All</button>
+                            <button type="button" class="secondary" onclick="showGrokAiHelper()" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="Ask an LLM to propose a Grok pattern that matches the selected sample lines.">🤖 AI Grok Helper</button>
                         </p>
                         <div id="lineSelector" style="background: white; padding: 0.75rem; border-radius: 4px; max-height: 300px; overflow-y: auto; margin-bottom: 1rem; border: 1px solid #ddd;"></div>
                         <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem; font-weight: bold;">How selected lines will be parsed:</p>
@@ -340,35 +340,36 @@
                 
                 <div class="form-group">
                     <label for="indexName">Index Name *</label>
-                    <input type="text" id="indexName" placeholder="app-logs" required>
+                    <input type="text" id="indexName" placeholder="app-logs" required title="Name of the Lucene index that will store this source's log entries. Multiple sources can share one index to search them together.">
                     <div class="form-hint">Name of the Lucene index to store logs</div>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="parserType">Parser Type *</label>
-                    <select id="parserType" required onchange="updatePreview()">
-                        <option value="keyvalue">Key-Value (default)</option>
-                        <option value="regex">Regular Expression</option>
-                        <option value="grok">Grok Pattern</option>
+                    <select id="parserType" required onchange="updatePreview()" title="How each log line is broken into fields. keyvalue=key=value pairs, regex=named capture groups, grok=named grok patterns, json=one JSON object per line.">
+                        <option value="keyvalue" title="Match `key=value` pairs (default). Good for logfmt output.">Key-Value (default)</option>
+                        <option value="regex" title="Match a regular expression with named capture groups. Groups become fields.">Regular Expression</option>
+                        <option value="grok" title="Match a Grok pattern like %{IP:client} %{WORD:method}. Groups become fields.">Grok Pattern</option>
+                        <option value="json" title="Parse each line as one JSON object. Every top-level key becomes a field. Recognises time/timestamp/ts/@timestamp for the event timestamp.">JSON</option>
                     </select>
                     <div class="form-hint">How to parse log entries and extract fields</div>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="parserConfig">Parser Configuration (optional)</label>
-                    <input type="text" id="parserConfig" placeholder='{"pattern": "...", "field.1": "timestamp"}' oninput="updatePreview()">
+                    <input type="text" id="parserConfig" placeholder='{"pattern": "...", "field.1": "timestamp"}' oninput="updatePreview()" title="Parser-specific JSON config. keyvalue takes {'delimiter':' '}. regex takes {'pattern':'^...(?<field>...)'}. grok takes {'pattern':'%{...}'}. json takes {'timestamp_field':'time','level_field':'level'} (both optional). Leave empty for defaults.">
                     <div class="form-hint">
                         JSON configuration for regex/grok parsers (leave empty for key-value)
                         <br>
-                        <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; font-size: 0.875rem;">📖 Grok Patterns Reference</a> |
-                        <a href="#" onclick="showGrokHelp(); return false;" style="color: #3498db; font-size: 0.875rem;">💡 Quick Examples</a> |
-                        <a href="#" onclick="showGrokAiHelper(); return false;" style="color: #3498db; font-size: 0.875rem;">🤖 AI Helper</a>
+                        <a href="https://github.com/yourorg/local_log_search/blob/main/GROK_PATTERNS.md" target="_blank" style="color: #3498db; font-size: 0.875rem;" title="Documentation for named grok patterns (%{IP}, %{WORD}, %{TIMESTAMP_ISO8601}, ...)">📖 Grok Patterns Reference</a> |
+                        <a href="#" onclick="showGrokHelp(); return false;" style="color: #3498db; font-size: 0.875rem;" title="Popup with a few ready-to-paste grok examples for common formats.">💡 Quick Examples</a> |
+                        <a href="#" onclick="showGrokAiHelper(); return false;" style="color: #3498db; font-size: 0.875rem;" title="Ask an LLM to build a grok pattern from your sample lines.">🤖 AI Helper</a>
                     </div>
                 </div>
-                
+
                 <div class="button-group">
-                    <button type="submit">Add Source</button>
-                    <button type="button" class="secondary" id="clearForm">Clear</button>
+                    <button type="submit" title="Save this source and start tailing the file immediately.">Add Source</button>
+                    <button type="button" class="secondary" id="clearForm" title="Reset the form back to its default empty state.">Clear</button>
                 </div>
             </form>
             
@@ -950,9 +951,9 @@
                             </div>
                         </div>
                         <div class="source-actions">
-                            <button onclick="editSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}', '${source.parserType}', ${source.parserConfig ? "'" + JSON.stringify(source.parserConfig).replace(/'/g, "\\'") + "'" : 'null'})">Edit</button>
-                            <button class="warning" onclick="reindexSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}')">Reindex</button>
-                            <button class="danger" onclick="deleteSource('${source.id || source.filePath}', '${source.filePath}')">Delete</button>
+                            <button title="Change parser type, index name, or parser configuration for this source (tailer restarts with the new settings)." onclick="editSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}', '${source.parserType}', ${source.parserConfig ? "'" + JSON.stringify(source.parserConfig).replace(/'/g, "\\'") + "'" : 'null'})">Edit</button>
+                            <button class="warning" title="Wipe this source's Lucene index and re-parse every line from the log file. Use after changing the parser or if the index looks corrupted." onclick="reindexSource('${source.id || source.filePath}', '${source.filePath}', '${source.indexName}')">Reindex</button>
+                            <button class="danger" title="Stop tailing this file and remove its source entry. Does NOT delete the log file or the index — those persist until you delete them manually." onclick="deleteSource('${source.id || source.filePath}', '${source.filePath}')">Delete</button>
                         </div>
                     </div>
                 `).join('');

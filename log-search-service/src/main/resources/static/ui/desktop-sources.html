@@ -230,10 +230,10 @@
             <img src="LLP_Logo.png" alt="Little Log Peep" class="header-logo">
         </div>
         <div class="nav-links">
-            <a href="/ui/index.html">🔍 Search</a>
+            <a href="/ui/index.html" title="Query your indexed logs with Lucene syntax + pipe commands (stats, chart, timechart).">🔍 Search</a>
             <a href="/ui/sources.html">📄 Log Sources</a>
             <a href="/ui/desktop-sources.html" class="active">💻 Desktop Search</a>
-            <a href="/ui/sql.html">🗄️ SQL Query</a>
+            <a href="/ui/sql.html" title="Query results exported to the H2 database using SQL.">🗄️ SQL Query</a>
             <a href="/ui/lucene-diagnostics.html">🔧 Diagnostics</a>
         </div>
     </div>
@@ -403,9 +403,9 @@
                             </div>
                         </div>
                         <div class="source-actions">
-                            <button class="success" onclick="indexSource('${source.id}')">📥 Index</button>
-                            <button class="success" onclick="reindexSource('${source.id}')">🔄 Re-Index</button>
-                            <button class="danger" onclick="deleteSource('${source.id}')">Delete</button>
+                            <button class="success" title="Scan this source's directory now and add any new/changed file content to the index. Existing unchanged files are skipped." onclick="indexSource('${source.id}')">📥 Index</button>
+                            <button class="success" title="Delete this source's Lucene index and rebuild it from scratch by re-parsing every file in the directory. Use this if the index looks corrupted or after changing include/exclude patterns." onclick="reindexSource('${source.id}')">🔄 Re-Index</button>
+                            <button class="danger" title="Stop indexing this directory and remove its source entry. Does NOT delete the files or the index — those persist until you delete them manually." onclick="deleteSource('${source.id}')">Delete</button>
                         </div>
                     </div>
                 `;
