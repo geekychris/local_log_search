@@ -41,6 +41,9 @@ public class ParserFactory {
             case "grok":
                 parser = new GrokParser();
                 break;
+            case "json":
+                parser = new JsonParser();
+                break;
             case "custom":
                 // Load custom parser class
                 String className = config.get("class");

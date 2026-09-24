@@ -31,7 +31,7 @@ public class LogSourceConfig {
     private String id;
     private String filePath;
     private String indexName;
-    private String parserType; // "keyvalue", "regex", "grok", "custom"
+    private String parserType; // "keyvalue", "regex", "grok", "json", "custom"
     private Map<String, String> parserConfig;
     private boolean enabled;
     

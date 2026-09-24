@@ -171,10 +171,31 @@ public class DesktopMain extends Application {
 
         Thread waiter = new Thread(() -> {
             waitForPort(port, 60_000);
+            // Publish the resolved port so external clients (e.g.
+            // geekychris/chief) can auto-register log sources via
+            // REST without having to guess or scrape the service log.
+            // Same pattern as claude-session-analyzer + history_viewer.
+            writePortFile();
             Platform.runLater(() -> web.getEngine().load(homeUrl));
         }, "lls-port-waiter");
         waiter.setDaemon(true);
         waiter.start();
+    }
+
+    /**
+     * Write the resolved port to
+     * {@code ~/Library/Application Support/LittleLogPeep/port}.
+     * External tools can read this to discover the running service's
+     * base URL. Best-effort — logs and moves on if the write fails.
+     */
+    private void writePortFile() {
+        try {
+            Path portFile = dataDir.resolve("port");
+            Files.writeString(portFile, Integer.toString(port));
+            log.info("Wrote port file {}", portFile);
+        } catch (IOException e) {
+            log.warn("Could not write port file: {}", e.toString());
+        }
     }
 
     /**
@@ -474,6 +495,9 @@ public class DesktopMain extends Application {
     }
 
     private synchronized void shutdownService() {
+        // Remove the port file so external clients don't try to POST
+        // to a dead server after we exit.
+        try { Files.deleteIfExists(dataDir.resolve("port")); } catch (IOException ignored) {}
         if (serviceProcess == null) return;
         Process p = serviceProcess;
         serviceProcess = null;
